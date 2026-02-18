@@ -1,4 +1,4 @@
-"""Database connection for Wargaming ERP. Reads config from environment (see repo .env.example)."""
+"""Database connection for ProxyForge. Reads config from environment (see repo .env.example)."""
 import os
 
 try:

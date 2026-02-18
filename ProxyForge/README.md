@@ -1,4 +1,4 @@
-🛡️ Wargaming ERP Technical Documentation
+⚔️ ProxyForge Technical Documentation
 Version: 1.0.0 (Modular Release)
 Game Systems: Warhammer 40,000 (10th Ed), OPR (Grimdark Future/Age of Fantasy)
 🏗️ 1. Architecture Overview
@@ -51,7 +51,7 @@ Visuals: If you select "Replace Bolt Pistol with Plasma Pistol," we’ll strike 
 
 Update v0.3
 
-# 🛡️ Wargaming ERP: Surgical Roster Builder
+# ProxyForge: Roster Builder & STL Library
 
 A high-precision Enterprise Resource Planning (ERP) tool for tabletop wargamers. Supports **Warhammer 40,000 (10th Ed)** and **One Page Rules (Grimdark Future)** with live data card generation and rules-aware list building.
 
@@ -84,4 +84,4 @@ Bulk Actions: Allowing you to "Unlink All" or "Set Designer Default" for entire 
 Direct download from STL Gallery: Backend proxy that uses MMF cookie/API key to call GET /objects/{id}/files and GET /files/{file_id}, then stream the file to the browser (e.g. st.download_button). Requires storing MMF auth in app config/env.
 
 ## 📋 Feature Todo & Feasibility
-A full list of features and options with feasibility notes lives in **docs/Feature-Todo-Wargaming-ERP.md**. It covers: updated OPR data, MMF link fixes, image gallery per STL, link manager refinements, download buttons, auto hydrators/scrapers, user sign-up & permissions, hosting, security, GW retail data, New Recruit data, update process, and slicer integration. Use it to prioritize and plan.
+A full list of features and options with feasibility notes lives in **docs/Feature-Todo-ProxyForge.md**. It covers: updated OPR data, MMF link fixes, image gallery per STL, link manager refinements, download buttons, auto hydrators/scrapers, user sign-up & permissions, hosting, security, GW retail data, New Recruit data, update process, and slicer integration. Use it to prioritize and plan.

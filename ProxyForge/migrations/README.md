@@ -6,16 +6,16 @@ Run these once against your `wargaming_erp` database when adding new features.
 
   **PowerShell** (from repo root):
   ```powershell
-  Get-Content "Wargaming_ERP\migrations\add_stl_library_notes_tags.sql" -Raw | mysql -u hobby_admin -p wargaming_erp
+  Get-Content "ProxyForge\migrations\add_stl_library_notes_tags.sql" -Raw | mysql -u hobby_admin -p wargaming_erp
   ```
   Or use `cmd` so `<` works:
   ```powershell
-  cmd /c "mysql -u hobby_admin -p wargaming_erp < Wargaming_ERP\migrations\add_stl_library_notes_tags.sql"
+  cmd /c "mysql -u hobby_admin -p wargaming_erp < ProxyForge\migrations\add_stl_library_notes_tags.sql"
   ```
 
   **Bash / Cmd:**
   ```bash
-  mysql -u hobby_admin -p wargaming_erp < Wargaming_ERP/migrations/add_stl_library_notes_tags.sql
+  mysql -u hobby_admin -p wargaming_erp < ProxyForge/migrations/add_stl_library_notes_tags.sql
   ```
   If you already ran it, you may see "Duplicate column" and can ignore.
 
@@ -32,8 +32,8 @@ Run these once against your `wargaming_erp` database when adding new features.
   **PowerShell** (from repo root). If `mysql` is not on your PATH, use the full path to `mysql.exe` (e.g. MySQL Server 8.0):
   ```powershell
   $mysql = "C:\Program Files\MySQL\MySQL Server 8.0\bin\mysql.exe"
-  Get-Content "Wargaming_ERP\migrations\add_stl_library_kit_metadata.sql" -Raw | & $mysql -u hobby_admin -p wargaming_erp
-  Get-Content "Wargaming_ERP\migrations\add_stl_library_faction_links.sql" -Raw | & $mysql -u hobby_admin -p wargaming_erp
+  Get-Content "ProxyForge\migrations\add_stl_library_kit_metadata.sql" -Raw | & $mysql -u hobby_admin -p wargaming_erp
+  Get-Content "ProxyForge\migrations\add_stl_library_faction_links.sql" -Raw | & $mysql -u hobby_admin -p wargaming_erp
   ```
   Or run each migration separately; replace `$mysql` with your path if different (e.g. MySQL Server 8.4).
 
@@ -45,5 +45,5 @@ Run these once against your `wargaming_erp` database when adding new features.
 
   **PowerShell** (from repo root; use full path to `mysql.exe` if not on PATH):
   ```powershell
-  Get-Content "Wargaming_ERP\migrations\add_stl_library_images_json.sql" -Raw | & $mysql -u hobby_admin -p wargaming_erp
+  Get-Content "ProxyForge\migrations\add_stl_library_images_json.sql" -Raw | & $mysql -u hobby_admin -p wargaming_erp
   ```

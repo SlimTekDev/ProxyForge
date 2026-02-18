@@ -9,7 +9,7 @@ Usage:
     python scripts/mmf/backfill_stl_images.py --skip-filled  # only rows with no/empty images_json
     python scripts/mmf/backfill_stl_images.py --limit 100    # test run (first 100)
 
-Requires: images_json column (run Wargaming_ERP/migrations/add_stl_library_images_json.sql first).
+Requires: images_json column (run ProxyForge/migrations/add_stl_library_images_json.sql first).
 """
 
 import argparse
@@ -122,7 +122,7 @@ def main():
         "SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'stl_library' AND COLUMN_NAME = 'images_json' LIMIT 1"
     )
     if cursor.fetchone() is None:
-        print("Column images_json not found. Run Wargaming_ERP/migrations/add_stl_library_images_json.sql first.")
+        print("Column images_json not found. Run ProxyForge/migrations/add_stl_library_images_json.sql first.")
         conn.close()
         sys.exit(1)
 

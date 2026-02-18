@@ -5,13 +5,13 @@ from opr_builder import run_opr_builder
 from w40k_builder import run_40k_builder
 from library_ui import run_library_ui  # We will create this file next
 
-st.set_page_config(layout="wide", page_title="Wargaming ERP")
+st.set_page_config(layout="wide", page_title="ProxyForge")
 
 try:
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
 
-    st.sidebar.title("🛡️ Wargaming ERP")
+    st.sidebar.title("⚔️ ProxyForge")
     
     # --- 0. NAVIGATION ---
     st.sidebar.divider()

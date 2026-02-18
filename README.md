@@ -1,17 +1,17 @@
-# WahapediaExport
+# ProxyForge
 
-Wargaming ERP: army list builders (OPR, 40K), Digital Library (STL gallery + audits), MMF sync scripts, and related tooling.
+Army list builders (OPR, 40K), Digital Library (STL gallery + audits), and MMF sync scripts. Curate and link your 3D-printed proxies to game units.
 
 ## Quick start
 
-1. **Clone** and set up Python (see `Wargaming_ERP/Requirements.txt` for the Streamlit app).
+1. **Clone** and set up Python (see `ProxyForge/Requirements.txt` for the Streamlit app).
 2. **Secrets:** Copy `.env.example` to `.env` and set at least `MYSQL_PASSWORD` (and `MMF_*` if using MMF scripts). Never commit `.env`. See **SECURITY.md** for all variables.
-3. **Database:** Run MySQL migrations under `Wargaming_ERP/migrations/` (see that folder’s README).
-4. **App:** From repo root, `streamlit run Wargaming_ERP/app.py` (or run from `Wargaming_ERP`).
+3. **Database:** Run MySQL migrations under `ProxyForge/migrations/` (see that folder’s README).
+4. **App:** From repo root, `streamlit run ProxyForge/app.py` (or run from `ProxyForge`).
 
 ## Repo layout
 
-- **Wargaming_ERP/** – Streamlit app (Digital Library, Army Builder), DB connection, migrations.
+- **ProxyForge/** – Streamlit app (Digital Library, Army Builder), DB connection, migrations.
 - **scripts/mmf/** – MMF library fetcher, hydrator, backfill_stl_images.
 - **scripts/opr/** – OPR data/import scripts.
 - **docs/** – Setup and feature docs.

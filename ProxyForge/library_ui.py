@@ -687,7 +687,7 @@ def run_library_ui():
                                     st.rerun()
                                 except Exception as e:
                                     if "Unknown column" in str(e) or "notes" in str(e).lower() or "tags" in str(e).lower():
-                                        st.error("Run migration first: Wargaming_ERP/migrations/add_stl_library_notes_tags.sql")
+                                        st.error("Run migration first: ProxyForge/migrations/add_stl_library_notes_tags.sql")
                                     else:
                                         st.error(str(e))
                         with st.expander("🏴 Faction associations", expanded=False):

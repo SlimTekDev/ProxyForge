@@ -28,7 +28,7 @@ except ImportError:
 #   - You also need a Client secret (may be "Secret" or "Show secret" on the same app page)
 #   - Redirect URI in app must be: http://localhost:8765/callback
 MMF_CLIENT_ID = os.environ.get("MMF_CLIENT_ID", "Ov23liArW0jSKx0WT2GS")
-MMF_CLIENT_SECRET = os.environ.get("MMF_CLIENT_SECRET", "edc49993ad3b7834123929e8874a1ac68d5177b2")
+MMF_CLIENT_SECRET = os.environ.get("MMF_CLIENT_SECRET", "pONj2GQIWPK0hr6jpfzjRtMyX4CvwT")
 REDIRECT_URI = "http://localhost:8765/callback"
 AUTH_URL = "https://auth.myminifactory.com/web/authorize"
 TOKEN_URL = "https://auth.myminifactory.com/v1/oauth/tokens"

@@ -1,4 +1,4 @@
-# Feature Todo & Feasibility — Wargaming ERP
+# Feature Todo & Feasibility — ProxyForge
 
 A living list of features and options for the project, with brief feasibility notes. Use this to prioritize and plan.
 
@@ -39,11 +39,11 @@ A living list of features and options for the project, with brief feasibility no
 
 **Implemented**
 
-- **DB:** `stl_library.images_json` (TEXT) stores a JSON array of `{url, thumbnailUrl}` per object. Migration: `Wargaming_ERP/migrations/add_stl_library_images_json.sql` (idempotent).
+- **DB:** `stl_library.images_json` (TEXT) stores a JSON array of `{url, thumbnailUrl}` per object. Migration: `ProxyForge/migrations/add_stl_library_images_json.sql` (idempotent).
 - **Fetcher:** Extracts images from MMF full object (including `original.url` shape); `MMF_ENRICH_IMAGES=1` enriches all items with full image lists. Hydrator writes `images_json` when the column exists.
 - **Backfill:** `scripts/mmf/backfill_stl_images.py` updates `images_json` for all (or missing) records from the API without re-fetching the full library.
 - **UI:** Digital Library STL Gallery shows a **Gallery** label and, when multiple images exist, a carousel (◀ / ▶, “Image N / M”) on each card; single image or preview fallback otherwise. Bottom pagination strip added.
-- **Docs:** `docs/MMF-Fetcher-Setup.md` and `Wargaming_ERP/migrations/README.md` updated.
+- **Docs:** `docs/MMF-Fetcher-Setup.md` and `ProxyForge/migrations/README.md` updated.
 
 ---
 
@@ -72,7 +72,7 @@ A living list of features and options for the project, with brief feasibility no
 **Feasibility: Medium (auth-dependent)**
 
 - **Current:** “Download” in the STL Gallery opens the MMF object page; user downloads there. True “direct download” (file stream) from the app is bookmarked.
-- **Vision:** App eventually allows users to **log in to MMF** (and whatever other sources are needed) so that in-app download options (e.g. “Download” button that streams the file) can use the user’s own auth. Direct download would use MMF API `GET /objects/{object_id}/files` and `GET /files/{file_id}` with the user’s session/API key. See **Wargaming_ERP/README.md** → Bookmarked (Digital Library).
+- **Vision:** App eventually allows users to **log in to MMF** (and whatever other sources are needed) so that in-app download options (e.g. “Download” button that streams the file) can use the user’s own auth. Direct download would use MMF API `GET /objects/{object_id}/files` and `GET /files/{file_id}` with the user’s session/API key. See **ProxyForge/README.md** → Bookmarked (Digital Library).
 
 ---
 
@@ -183,7 +183,7 @@ A living list of features and options for the project, with brief feasibility no
 
 ## Digital Library schema (kit metadata & faction links)
 
-- **Kit metadata (stl_library):** `size_or_scale`, `kit_type`, `kit_composition`, `is_supported`, `print_technology`, `miniature_rating`, `license_type`, `part_count`, `print_time_estimate`. Suggested values in migration comments. See **Wargaming_ERP/migrations/add_stl_library_kit_metadata.sql**.
+- **Kit metadata (stl_library):** `size_or_scale`, `kit_type`, `kit_composition`, `is_supported`, `print_technology`, `miniature_rating`, `license_type`, `part_count`, `print_time_estimate`. Suggested values in migration comments. See **ProxyForge/migrations/add_stl_library_kit_metadata.sql**.
 - **Faction links (stl_library_faction_links):** `mmf_id`, `game_system`, `faction_key`. Associates MMF records with 40K faction (`waha_factions.id`) or OPR army (`opr_units.army`) for roster-level “this STL fits this faction” and proxy suggestions (Feature #5). See **add_stl_library_faction_links.sql**.
 
 ---
