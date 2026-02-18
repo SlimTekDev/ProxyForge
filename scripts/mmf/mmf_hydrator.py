@@ -1,16 +1,24 @@
 import argparse
 import hashlib
 import json
+import os
 import sys
 from pathlib import Path
+
+try:
+    from dotenv import load_dotenv
+    _repo = Path(__file__).resolve().parent.parent.parent
+    load_dotenv(_repo / ".env")
+except ImportError:
+    pass
 
 import mysql.connector
 
 DB_CONFIG = {
-    "host": "127.0.0.1",
-    "user": "hobby_admin",
-    "password": "Warhammer40K!",
-    "database": "wargaming_erp"
+    "host": os.environ.get("MYSQL_HOST", "127.0.0.1"),
+    "user": os.environ.get("MYSQL_USER", "hobby_admin"),
+    "password": os.environ.get("MYSQL_PASSWORD", ""),
+    "database": os.environ.get("MYSQL_DATABASE", "wargaming_erp"),
 }
 
 # Default: data/mmf/mmf_download.json next to repo root (scripts/mmf -> repo root = parent.parent)
@@ -67,25 +75,60 @@ def hydrate_mmf_library(force=False):
             status = VALUES(status),
             has_pdf = VALUES(has_pdf)
     """
+    sql_extended_images = """
+        INSERT INTO stl_library (mmf_id, name, creator_name, preview_url, mmf_url, description, price, status, has_pdf, images_json)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+        ON DUPLICATE KEY UPDATE 
+            name = VALUES(name),
+            preview_url = VALUES(preview_url),
+            description = VALUES(description),
+            price = VALUES(price),
+            status = VALUES(status),
+            has_pdf = VALUES(has_pdf),
+            images_json = VALUES(images_json)
+    """
 
     print(f"🚀 Hydrating {len(data)} STL entries...")
     use_extended = False
+    use_images = False
     try:
         cursor.execute(
             "SELECT 1 FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'stl_library' AND COLUMN_NAME = 'description' LIMIT 1"
         )
         use_extended = cursor.fetchone() is not None
+        cursor.execute(
+            "SELECT 1 FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'stl_library' AND COLUMN_NAME = 'images_json' LIMIT 1"
+        )
+        use_images = cursor.fetchone() is not None
         if use_extended:
             print("   Using extended columns (description, price, status, has_pdf).")
         else:
             print("   Using base columns only. Run migrations/add_stl_library_mmf_detail.sql then re-run to fill price/description.")
+        if use_images:
+            print("   Using images_json for gallery.")
+        else:
+            print("   Run migrations/add_stl_library_images_json.sql then re-run to fill image gallery.")
     except Exception as e:
         print(f"   Using base columns only ({e}). Run migrations/add_stl_library_mmf_detail.sql then re-run.")
 
     for obj in data:
         url_path = obj.get('url') or ''
         mmf_url = f"https://www.myminifactory.com{url_path}" if url_path.startswith('/') else url_path or None
-        if use_extended:
+        if use_extended and use_images:
+            val = (
+                obj.get('id'),
+                obj.get('name'),
+                (obj.get('creator') or {}).get('name'),
+                obj.get('previewUrl'),
+                mmf_url,
+                (obj.get('description') or None),
+                (obj.get('price') or None),
+                (obj.get('status') or None),
+                1 if obj.get('hasPdf') else 0,
+                json.dumps(obj.get('images') or []),
+            )
+            cursor.execute(sql_extended_images, val)
+        elif use_extended:
             val = (
                 obj.get('id'),
                 obj.get('name'),

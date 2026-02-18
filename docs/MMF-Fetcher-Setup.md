@@ -80,6 +80,17 @@ The fetcher tries cookie auth if `MMF_SESSION_COOKIE` is set; you can set it wit
 
 **Preview images:** The data-library list endpoint may return minimal objects (no `previewUrl`). To fill previews, set **`MMF_ENRICH_PREVIEW=1`** before running the fetcher. It will then call `GET /api/v2/objects/{id}` for each object missing a preview URL (slower; use `MMF_ENRICH_DELAY=0.3` or higher to avoid rate limits). After that, re-run the hydrator so the DB gets the new preview URLs.
 
+**Full image gallery (images_json):** To update *all* STL library records with full image details for the Digital Library carousel:
+
+- **Option A — Fetcher + hydrator:** Set **`MMF_ENRICH_IMAGES=1`** and run the fetcher. It will call `GET /api/v2/objects/{id}` for every object (rate-limited; may take a long time for large libraries). Then run the hydrator so `images_json` is written to the DB.
+  - **PowerShell:** set the env var first, then run the script:
+    ```powershell
+    $env:MMF_ENRICH_IMAGES = "1"
+    python scripts/mmf/fetch_mmf_library.py
+    ```
+  - **Bash:** `MMF_ENRICH_IMAGES=1 python scripts/mmf/fetch_mmf_library.py`
+- **Option B — DB-only backfill:** Run **`python scripts/mmf/backfill_stl_images.py`** (same auth: `MMF_API_KEY` or `MMF_SESSION_COOKIE`). This updates `stl_library.images_json` directly from the API without re-downloading the full library. Use `--skip-filled` to only update rows with no/empty images, or `--limit 100` for a test run.
+
 **Object detail vs “content-json” on the page:** The JSON you see as `content-json` when loading an object page (e.g. `/object/3d-print-phaeton-guard-...`) is **cart/checkout data** (getCart, items, campaigns, pricing), not the 3D object metadata. For **object detail** (name, description, previewUrl, images, creator, price), the fetcher uses **`GET /api/v2/objects/{id}`** during enrichment. That endpoint returns the full object; we already map previewUrl and could extend the normalizer to store description/price if we add those columns later.
 
 ### 1.3 Library IDs file (for exact Library sync: `MMF_LIBRARY_SOURCE=data_library`)

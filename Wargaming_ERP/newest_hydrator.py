@@ -1,14 +1,25 @@
 import json
+import os
+from pathlib import Path
+
+try:
+    from dotenv import load_dotenv
+    load_dotenv(Path(__file__).resolve().parent.parent / ".env")
+except ImportError:
+    pass
+
 import mysql.connector
 
 DB_CONFIG = {
-    "host": "127.0.0.1", # Surgical: Force TCP over sockets
-    "user": "hobby_admin",
-    "password": "Warhammer40K!",
-    "database": "wargaming_erp"
+    "host": os.environ.get("MYSQL_HOST", "127.0.0.1"),
+    "user": os.environ.get("MYSQL_USER", "hobby_admin"),
+    "password": os.environ.get("MYSQL_PASSWORD", ""),
+    "database": os.environ.get("MYSQL_DATABASE", "wargaming_erp"),
 }
 
-JSON_PATH = r"C:\Users\slimm\Desktop\WahapediaExport\OPR Data Export\data.json"
+# OPR export JSON: set OPR_DATA_JSON path or place data.json in repo data/opr/
+_REPO = Path(__file__).resolve().parent.parent
+JSON_PATH = os.environ.get("OPR_DATA_JSON") or str(_REPO / "data" / "opr" / "data.json")
 
 def dual_system_sync():
     try:
@@ -41,7 +52,7 @@ def dual_system_sync():
                 image_url = VALUES(image_url)
         """
 
-        print(f"🚀 Syncing {len(data)} units using hobby_admin...")
+        print(f"🚀 Syncing {len(data)} units...")
         
         count = 0
         for entry in data:

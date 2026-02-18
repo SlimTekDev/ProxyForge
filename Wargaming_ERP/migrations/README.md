@@ -40,3 +40,10 @@ Run these once against your `wargaming_erp` database when adding new features.
 - **add_stl_library_faction_links.sql** – New table `stl_library_faction_links` (mmf_id, game_system, faction_key) to associate MMF records with 40K factions or OPR armies for roster-level proxy suggestions and filtering.
 
 - **add_play_armylist_stl_choices.sql** – New table `play_armylist_stl_choices` (entry_id, mmf_id, sort_order) so each roster entry can have multiple STL choices (e.g. kitbashing). Used by "Choose STL for Roster" in the Army Builder unit details. Run with same PowerShell pattern as above (full path to mysql if needed).
+
+- **add_stl_library_images_json.sql** – Adds `images_json` (TEXT) to `stl_library` to store a JSON array of `{url, thumbnailUrl}` per MMF object. Used by the STL Gallery image carousel (Feature #3). **Idempotent:** safe to run multiple times (no-op if column exists). After running, re-run the MMF fetcher with `MMF_ENRICH_IMAGES=1` and the hydrator to populate; the gallery will show Prev/Next when multiple images exist.
+
+  **PowerShell** (from repo root; use full path to `mysql.exe` if not on PATH):
+  ```powershell
+  Get-Content "Wargaming_ERP\migrations\add_stl_library_images_json.sql" -Raw | & $mysql -u hobby_admin -p wargaming_erp
+  ```

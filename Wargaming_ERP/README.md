@@ -4,7 +4,7 @@ Game Systems: Warhammer 40,000 (10th Ed), OPR (Grimdark Future/Age of Fantasy)
 🏗️ 1. Architecture Overview
 The application follows a Modular Streamlit Architecture. Logic is separated by game system to prevent cross-contamination of rules and data structures.
 app.py: The Traffic Controller. Handles list creation and routes the user to the correct builder module based on the game_system flag.
-database_utils.py: The Foundation. Centralizes the mysql-connector logic.
+database_utils.py: The Foundation. Centralizes the mysql-connector logic and reads DB config from environment (see repo **.env.example** and **SECURITY.md**).
 w40k_builder.py: The 10th Edition sandbox. Handles Detachments, 6-metric stat bars, and Enhancement logic.
 opr_builder.py: The OPR engine. Handles "Replace" wargear logic, strikethrough rendering, and upgrade sets.
 🗄️ 2. Database Schema (Standardized)
@@ -31,6 +31,9 @@ Unit Detail Pop-ups (@st.dialog): Triggered via the 👁️ icon.
 OPR: Features "Active Weapons" vs "Upgrades" tabs with strikethrough logic (🚫) for replaced gear.
 40K: Features a 6-column metric bar and "Special Rules" pulled from the waha_abilities table.
 Cascading Filters: List creation and Library search use a 3-tier cascade: System -> Setting -> Faction.
+🔐 Environment setup (secrets)
+Do not commit passwords or API keys. Copy the repo root **.env.example** to **.env**, fill in `MYSQL_PASSWORD` (and optionally `MMF_*` for MMF scripts), and optionally `pip install python-dotenv` so the app and scripts load `.env`. See repo **SECURITY.md** for full list of variables.
+
 🛠️ 5. Maintenance & Troubleshooting
 Adding New OPR Data: Use the OPR_JSON_analyzer.py script. It automatically populates opr_units, opr_unit_upgrades, and maps the opr_army_settings.
 Metadata Locks: If the app hangs, use SHOW PROCESSLIST and KILL [ID] in Workbench to clear stuck metadata locks on Stored Procedures.

@@ -8,7 +8,8 @@ A living list of features and options for the project, with brief feasibility no
 
 | When | Items | Notes |
 |------|--------|------|
-| **Sooner** | **#1, #3, #4, #7, #11** | OPR data updates; image gallery per MMF unit; link manager refinements; auto hydrators/scrapers; GW retail data (third-party or manual). |
+| **Sooner** | **#1, #4, #7, #11** | OPR data updates; link manager refinements; auto hydrators/scrapers; GW retail data (third-party or manual). |
+| **Done** | **#3** | Image gallery per MMF unit (images_json, carousel, backfill script). |
 | **Dropped** | **#2** | MMF link slash after `.com` — resolved earlier. |
 | **Bookmarked** | **#6** | Direct download from app; vision: users log in to MMF (and other sources) for DL options. |
 | **2.0 release** | **#8, #9, #10** | User login; hosting/public access; security. Vision: users add MMF object IDs to fetch/hydrate, associate game units and roster units with MMF files, crowdsource proxy suggestions, heat map / rating data for proxy suggestions. |
@@ -34,13 +35,15 @@ A living list of features and options for the project, with brief feasibility no
 
 ---
 
-## 3. Figure out if entire image list for each unit is available and can be flipped through for each MMF unit
+## 3. ~~Figure out if entire image list for each unit is available and can be flipped through for each MMF unit~~ **DONE**
 
-**Feasibility: High**
+**Implemented**
 
-- **Current:** MMF API already exposes multiple images per object. In `mmf_download.json`, objects can have an `images[]` array (each with `url`, `thumbnailUrl`). The fetcher uses the first image for `previewUrl` when the list response has `images[]`; enrichment (`GET /api/v2/objects/{id}`) returns full object with `previewUrl` and `images`.
-- **Gap:** The app only shows one preview per STL. The full list is not stored in the DB or shown in the UI.
-- **Options:** (1) Store image URLs in DB (e.g. `stl_library_images` or a JSON column) and show a simple carousel/gallery in the Library UI. (2) Or, on demand, call MMF API for `GET /objects/{id}` and show `images[]` in the UI (no DB change; requires auth if object is private). (3) Enrich and persist `images[]` in download JSON, then hydrator writes to an images table; UI reads from DB. Easiest short term: persist `images` in fetcher output and add a small “gallery” (previous/next) on the card using that data once hydrated.
+- **DB:** `stl_library.images_json` (TEXT) stores a JSON array of `{url, thumbnailUrl}` per object. Migration: `Wargaming_ERP/migrations/add_stl_library_images_json.sql` (idempotent).
+- **Fetcher:** Extracts images from MMF full object (including `original.url` shape); `MMF_ENRICH_IMAGES=1` enriches all items with full image lists. Hydrator writes `images_json` when the column exists.
+- **Backfill:** `scripts/mmf/backfill_stl_images.py` updates `images_json` for all (or missing) records from the API without re-fetching the full library.
+- **UI:** Digital Library STL Gallery shows a **Gallery** label and, when multiple images exist, a carousel (◀ / ▶, “Image N / M”) on each card; single image or preview fallback otherwise. Bottom pagination strip added.
+- **Docs:** `docs/MMF-Fetcher-Setup.md` and `Wargaming_ERP/migrations/README.md` updated.
 
 ---
 

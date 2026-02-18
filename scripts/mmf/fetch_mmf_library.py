@@ -11,6 +11,10 @@ Setup:
   - Output: data/mmf/mmf_download.json and data/mmf/last_sync.json.
   - MMF_ENRICH_PREVIEW=1: after data-library fetch, for each object missing previewUrl, GET /api/v2/objects/{id}
     to fill preview (and url) from full object. Slower but ensures images; set MMF_ENRICH_DELAY (default 0.3).
+  - MMF_ENRICH_IMAGES=1: after fetch (and optional _enrich_previews), GET /api/v2/objects/{id} for every
+    object and merge full image list (for Digital Library gallery carousel). Updates all records; may take
+    a long time (rate-limited). Run hydrator after. Alternative: use scripts/mmf/backfill_stl_images.py to
+    update images_json in the DB only (no full library re-fetch).
 """
 
 import hashlib
@@ -35,10 +39,16 @@ except ImportError:
     CURL_CFFI_AVAILABLE = False
 
 # -----------------------------------------------------------------------------
-# Config: override via env or edit here
+# Config: override via env or .env (copy .env.example to .env)
 # -----------------------------------------------------------------------------
 BASE_DIR = Path(__file__).resolve().parent
 REPO_ROOT = BASE_DIR.parent.parent
+try:
+    from dotenv import load_dotenv
+    load_dotenv(REPO_ROOT / ".env")
+except ImportError:
+    pass
+
 DATA_MMF = REPO_ROOT / "data" / "mmf"
 OUTPUT_JSON = DATA_MMF / "mmf_download.json"
 LAST_SYNC_JSON = DATA_MMF / "last_sync.json"
@@ -46,7 +56,7 @@ LAST_SYNC_JSON = DATA_MMF / "last_sync.json"
 MMF_API_BASE = "https://www.myminifactory.com/api/v2"
 MMF_WEB_BASE = "https://www.myminifactory.com"  # for non-v2 endpoints like /api/data-library/objects
 # Set your MyMiniFactory username here (or set env MMF_USERNAME).
-MMF_USERNAME = (os.environ.get("MMF_USERNAME") or "slimmills").strip()
+MMF_USERNAME = (os.environ.get("MMF_USERNAME") or "").strip()
 MMF_API_KEY = (os.environ.get("MMF_API_KEY") or "").strip()  # OAuth2 access token from get_mmf_token.py
 MMF_SESSION_COOKIE = (os.environ.get("MMF_SESSION_COOKIE") or "").strip()  # Browser Cookie header; alternative to API key
 # What to fetch:
@@ -84,7 +94,41 @@ DATA_LIBRARY_DELAY = float(os.environ.get("MMF_LIBRARY_DELAY", "0.5"))  # second
 PER_PAGE = 100
 # Enrich objects missing previewUrl by fetching full object from GET /api/v2/objects/{id} (slower but gets images)
 MMF_ENRICH_PREVIEW = os.environ.get("MMF_ENRICH_PREVIEW", "").strip().lower() in ("1", "true", "yes")
+# Enrich all objects that have no images: GET full object and merge images (for Digital Library gallery)
+MMF_ENRICH_IMAGES = os.environ.get("MMF_ENRICH_IMAGES", "").strip().lower() in ("1", "true", "yes")
 ENRICH_DELAY = float(os.environ.get("MMF_ENRICH_DELAY", "0.3"))  # seconds between enrichment requests
+MMF_DEBUG_IMAGES = os.environ.get("MMF_DEBUG_IMAGES", "").strip().lower() in ("1", "true", "yes")  # log first full-object keys
+
+
+def _extract_images_list(api_obj: dict) -> list:
+    """Extract list of {url, thumbnailUrl} from API object. Tries 'images', 'Images', nested 'media.images', etc.
+    Handles MMF full-object shape where each image has 'original': {'url': '...'} instead of top-level 'url'."""
+    raw = (
+        api_obj.get("images")
+        or api_obj.get("Images")
+        or (isinstance(api_obj.get("media"), dict) and api_obj["media"].get("images"))
+        or api_obj.get("gallery")
+    )
+    if not isinstance(raw, list) or len(raw) == 0:
+        return []
+    out = []
+    for img in raw[:50]:
+        if isinstance(img, dict):
+            # MMF full object uses original: {url: "..."}; list may use top-level url/thumbnailUrl
+            u = img.get("url") or (img.get("original") or {}).get("url") or img.get("thumbnailUrl")
+            if not u and isinstance(img.get("thumbnail"), dict):
+                u = img.get("thumbnail", {}).get("url")
+            if not u and isinstance(img.get("thumbnail"), str):
+                u = img.get("thumbnail")
+            u = (u or "").strip()
+            thumb = img.get("thumbnailUrl") or (img.get("thumbnail") or {}).get("url") if isinstance(img.get("thumbnail"), dict) else img.get("thumbnail") or u
+            thumb = (thumb or u).strip() if isinstance(thumb, str) else (u or "")
+            if u:
+                out.append({"url": u, "thumbnailUrl": thumb or u})
+        elif isinstance(img, str) and img.strip():
+            u = img.strip()
+            out.append({"url": u, "thumbnailUrl": u})
+    return out
 
 
 def _normalize_object(api_obj: dict) -> dict:
@@ -128,10 +172,9 @@ def _normalize_object(api_obj: dict) -> dict:
         or api_obj.get("preview")
         or (api_obj.get("cover_image") or {}).get("url") if isinstance(api_obj.get("cover_image"), dict) else None
     )
-    if not preview_url and isinstance(api_obj.get("images"), list) and len(api_obj["images"]) > 0:
-        first_img = api_obj["images"][0]
-        if isinstance(first_img, dict):
-            preview_url = first_img.get("url") or first_img.get("thumbnailUrl") or first_img.get("thumbnail")
+    images_for_preview = _extract_images_list(api_obj)
+    if not preview_url and images_for_preview:
+        preview_url = images_for_preview[0].get("url") or images_for_preview[0].get("thumbnailUrl") or ""
     preview_url = (preview_url or "").strip()
 
     # Object URL path: full object may have url as slug "clint-gobswood-763934"; list may have "/object/3d-print-..."
@@ -159,6 +202,10 @@ def _normalize_object(api_obj: dict) -> dict:
     status = (api_obj.get("status") or "").strip() if isinstance(api_obj.get("status"), str) else ""
     has_pdf = bool(api_obj.get("hasPdf") or api_obj.get("has_pdf"))
 
+    # Full image list for gallery (list of {url, thumbnailUrl})
+    # API may use "images", "Images", or nested structure; items may be dicts or URL strings
+    images = _extract_images_list(api_obj)
+
     return {
         "id": obj_id,
         "name": name,
@@ -169,6 +216,7 @@ def _normalize_object(api_obj: dict) -> dict:
         "price": price[:50] if price else "",
         "status": status[:50] if status else "",
         "hasPdf": has_pdf,
+        "images": images[:50] if images else [],  # cap for DB size
     }
 
 
@@ -286,6 +334,9 @@ def fetch_library_by_ids(api_key: str, session_cookie: str = "") -> list:
     # Optional: fetch full object for items missing previewUrl (GET /api/v2/objects/{id} has previewUrl/images)
     if MMF_ENRICH_PREVIEW and (MMF_API_KEY or MMF_SESSION_COOKIE):
         all_items = _enrich_previews(all_items, MMF_API_KEY, MMF_SESSION_COOKIE, use_curl_cffi)
+    # Optional: fetch full object for all items with no images (for Digital Library gallery carousel)
+    if MMF_ENRICH_IMAGES and (MMF_API_KEY or MMF_SESSION_COOKIE):
+        all_items = _enrich_images(all_items, MMF_API_KEY, MMF_SESSION_COOKIE, use_curl_cffi)
     return all_items
 
 
@@ -347,6 +398,9 @@ def _enrich_previews(
                 item["previewUrl"] = norm["previewUrl"]
                 if (norm.get("url") or "").strip():
                     item["url"] = norm["url"]
+                # Merge full image list for gallery (Digital Library carousel)
+                if isinstance(norm.get("images"), list) and len(norm["images"]) > 0:
+                    item["images"] = norm["images"]
         except Exception:
             continue
         done += 1
@@ -355,6 +409,70 @@ def _enrich_previews(
         if (idx + 1) % 50 == 0 or (idx + 1) == n:
             print(f"   Enriched {idx + 1}/{n} (preview filled for {done} so far)")
     print(f"   Enrichment done: {done} objects now have preview URLs.")
+    return all_items
+
+
+def _enrich_images(
+    all_items: list[dict], api_key: str, session_cookie: str, use_curl_cffi: bool
+) -> list[dict]:
+    """For each item, GET /api/v2/objects/{id} and merge full image list (for Digital Library gallery).
+    When MMF_ENRICH_IMAGES=1, enriches ALL items so every STL gets images_json. May take a long time (rate-limited)."""
+    to_enrich = all_items  # enrich every item so all records get full image details
+    if not to_enrich:
+        return all_items
+    n = len(to_enrich)
+    print(f"   Enriching all {n} objects for image gallery (GET /api/v2/objects/{{id}})…")
+    print(f"   This may take a while (rate limit: {ENRICH_DELAY}s per request). Use MMF_ENRICH_DELAY=0.2 to speed up.")
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Accept": "application/json",
+        "Accept-Language": "en-US,en;q=0.9",
+        "Referer": f"{MMF_WEB_BASE}/library",
+    }
+    if session_cookie:
+        headers["Cookie"] = session_cookie
+    if api_key:
+        headers["Authorization"] = f"Bearer {api_key}"
+    done = 0
+    for idx, item in enumerate(to_enrich):
+        num_id = _numeric_id_from_obj_id(item.get("id"))
+        if num_id is None:
+            continue
+        url = f"{MMF_API_BASE}/objects/{num_id}"
+        try:
+            if use_curl_cffi:
+                with CurlSession(impersonate="chrome") as s:
+                    r = s.get(url, headers=headers, timeout=30)
+            else:
+                r = requests.get(url, headers=headers, timeout=30)
+            if not r.ok:
+                continue
+            full = r.json()
+            if not isinstance(full, dict):
+                continue
+            if MMF_DEBUG_IMAGES and done == 0 and idx == 0:
+                print(f"   [DEBUG] Full object keys: {list(full.keys())}")
+                for k in ("images", "Images", "media", "gallery", "photos"):
+                    if k in full:
+                        v = full[k]
+                        preview = str(v)[:200] + "..." if (isinstance(v, (list, dict)) and len(str(v)) > 200) else v
+                        print(f"   [DEBUG] full[{k!r}] = {preview}")
+            norm = _normalize_object(full)
+            if norm:
+                if isinstance(norm.get("images"), list) and len(norm["images"]) > 0:
+                    item["images"] = norm["images"]
+                    done += 1
+                if (norm.get("previewUrl") or "").strip() and not (item.get("previewUrl") or "").strip():
+                    item["previewUrl"] = norm["previewUrl"]
+                if (norm.get("url") or "").strip():
+                    item["url"] = norm["url"]
+        except Exception:
+            continue
+        if ENRICH_DELAY > 0:
+            time.sleep(ENRICH_DELAY)
+        if (idx + 1) % 50 == 0 or (idx + 1) == n:
+            print(f"   Image enrich {idx + 1}/{n} ({done} with images so far)")
+    print(f"   Image enrichment done: {done} objects now have image lists.")
     return all_items
 
 

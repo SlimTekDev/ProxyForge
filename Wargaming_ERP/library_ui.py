@@ -1,7 +1,29 @@
+import json
 import re
 import streamlit as st
 import pandas as pd
 from database_utils import get_db_connection
+
+
+def _parse_images_json(images_json):
+    """Return list of {url, thumbnailUrl} from images_json; empty list if invalid/missing."""
+    if not images_json:
+        return []
+    try:
+        data = json.loads(images_json) if isinstance(images_json, str) else images_json
+        return data if isinstance(data, list) else []
+    except (TypeError, ValueError):
+        return []
+
+
+def _get_images_json_from_row(row):
+    """Get images_json from a DB row; handles column name casing (e.g. images_json vs IMAGES_JSON)."""
+    if not row:
+        return None
+    for key, value in row.items():
+        if key and key.lower() == "images_json":
+            return value
+    return row.get("images_json")
 
 # --- 1. Linking Dialog ---
 @st.dialog("🔗 Link STL to Game Unit")
@@ -419,6 +441,13 @@ def run_library_ui():
         filter_supported = f7.selectbox("Supported", ["All", "Yes", "No", "Unknown"], key="stl_supported")
         filter_print_tech = f8.selectbox("Print tech", ["All", "FDM", "Resin", "Both", "Unknown"], key="stl_print_tech")
 
+        with st.expander("🖼️ Gallery help"):
+            st.caption(
+                "Each card shows a **Preview** or **Gallery** (single image or carousel). "
+                "To get multiple images per STL: run migration add_stl_library_images_json.sql, "
+                "then re-run the MMF fetcher with MMF_ENRICH_IMAGES=1 and the hydrator."
+            )
+
         # Build WHERE and ORDER
         base_query = "FROM stl_library WHERE 1=1"
         params = []
@@ -513,14 +542,49 @@ def run_library_ui():
         stls = cursor.fetchall()
 
         if stls:
+            if "stl_carousel" not in st.session_state:
+                st.session_state.stl_carousel = {}
             cols = st.columns(4)
             for idx, stl in enumerate(stls):
                 with cols[idx % 4]:
                     with st.container(border=True):
-                        if stl.get('preview_url'):
-                            st.image(stl['preview_url'], use_container_width=True)
+                        images = _parse_images_json(_get_images_json_from_row(stl))
+                        # Show gallery: carousel when 2+ images, single image when 1, else preview_url
+                        if len(images) > 1:
+                            st.caption("🖼️ Gallery")
+                            mmf_id = stl["mmf_id"]
+                            cur_idx = st.session_state.stl_carousel.get(mmf_id, 0) % len(images)
+                            img = images[cur_idx]
+                            img_url = img.get("url") or img.get("thumbnailUrl") or ""
+                            if img_url:
+                                st.image(img_url, use_container_width=True)
+                            prev_k = f"stl_prev_{mmf_id}_{current_page}_{idx}"
+                            next_k = f"stl_next_{mmf_id}_{current_page}_{idx}"
+                            c1, c2, c3 = st.columns([1, 2, 1])
+                            with c1:
+                                if st.button("◀", key=prev_k, help="Previous image"):
+                                    st.session_state.stl_carousel[mmf_id] = (cur_idx - 1) % len(images)
+                                    st.rerun()
+                            with c2:
+                                st.caption(f"Image {cur_idx + 1} / {len(images)}")
+                            with c3:
+                                if st.button("▶", key=next_k, help="Next image"):
+                                    st.session_state.stl_carousel[mmf_id] = (cur_idx + 1) % len(images)
+                                    st.rerun()
+                        elif len(images) == 1:
+                            st.caption("🖼️ Gallery")
+                            img_url = images[0].get("url") or images[0].get("thumbnailUrl") or ""
+                            if img_url:
+                                st.image(img_url, use_container_width=True)
+                            else:
+                                st.caption("(no preview)")
                         else:
-                            st.caption("(no preview)")
+                            # No images_json or empty: show single preview so gallery area is visible
+                            if stl.get('preview_url'):
+                                st.caption("🖼️ Preview")
+                                st.image(stl['preview_url'], use_container_width=True)
+                            else:
+                                st.caption("🖼️ (no preview)")
                         st.markdown(f"**{stl['name']}**")
                         if stl.get('creator_name'):
                             st.caption(stl['creator_name'])
@@ -669,6 +733,31 @@ def run_library_ui():
                                     conn_f.close()
                                 except Exception:
                                     pass
+
+            # --- BOTTOM PAGE NAVIGATION (duplicate of top strip) ---
+            st.divider()
+            _b1, nav_bottom, _b2 = st.columns([1, 2, 2])
+            with nav_bottom:
+                prev_disabled_b = current_page <= 1
+                next_disabled_b = current_page >= max_page
+                pb1, pb2, pb3, pb4, pb5, pb6 = st.columns([1, 1, 1, 1, 2, 1])
+                with pb2:
+                    if st.button("◀ Prev", key="stl_prev_bottom", disabled=prev_disabled_b):
+                        st.session_state.stl_gallery_page = current_page - 1
+                        st.rerun()
+                with pb3:
+                    st.caption(f"Page **{current_page}** of **{max_page}** · {total_count} total")
+                with pb4:
+                    if st.button("Next ▶", key="stl_next_bottom", disabled=next_disabled_b):
+                        st.session_state.stl_gallery_page = current_page + 1
+                        st.rerun()
+                with pb5:
+                    st.number_input("Go to page", min_value=1, max_value=max_page, value=current_page, key="stl_goto_page_bottom", label_visibility="collapsed")
+                with pb6:
+                    if st.button("Go", key="stl_go_page_bottom"):
+                        p = int(st.session_state.get("stl_goto_page_bottom", current_page))
+                        st.session_state.stl_gallery_page = max(1, min(p, max_page))
+                        st.rerun()
         else:
             st.info("No matching STLs on this page. Try different filters or go to an earlier page.")
         conn.close()

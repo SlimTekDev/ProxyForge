@@ -4,16 +4,21 @@ __pycache__/
 .venv/
 venv/
 env/
-.env
 *.log
 .pytest_cache/
 .ruff_cache/
 .mypy_cache/
 
+# Environment and secrets (never commit)
+.env
+.env.local
+.env.*.local
+*.env.local
+
+# Sensitive / large data
+data/mmf/mmf_download.json
+data/mmf/last_sync.json
+
 # IDE / editor
 .idea/
 .cursorignore
-
-# Optional: large downloaded data (uncomment if you don't want to commit)
-# data/mmf/mmf_download.json
-# data/mmf/last_sync.json
