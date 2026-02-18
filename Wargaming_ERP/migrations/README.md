@@ -26,3 +26,17 @@ Run these once against your `wargaming_erp` database when adding new features.
   ALTER TABLE stl_library ADD COLUMN status VARCHAR(50) NULL;
   ALTER TABLE stl_library ADD COLUMN has_pdf TINYINT(1) NULL;
   ```
+
+- **add_stl_library_kit_metadata.sql** – Digital Library refinements: `size_or_scale`, `kit_type`, `kit_composition`, `is_supported`, `print_technology`, `miniature_rating`, `license_type`, `part_count`, `print_time_estimate`. Used by the STL Gallery for filtering and per-card “Kit & print” editing.
+
+  **PowerShell** (from repo root). If `mysql` is not on your PATH, use the full path to `mysql.exe` (e.g. MySQL Server 8.0):
+  ```powershell
+  $mysql = "C:\Program Files\MySQL\MySQL Server 8.0\bin\mysql.exe"
+  Get-Content "Wargaming_ERP\migrations\add_stl_library_kit_metadata.sql" -Raw | & $mysql -u hobby_admin -p wargaming_erp
+  Get-Content "Wargaming_ERP\migrations\add_stl_library_faction_links.sql" -Raw | & $mysql -u hobby_admin -p wargaming_erp
+  ```
+  Or run each migration separately; replace `$mysql` with your path if different (e.g. MySQL Server 8.4).
+
+- **add_stl_library_faction_links.sql** – New table `stl_library_faction_links` (mmf_id, game_system, faction_key) to associate MMF records with 40K factions or OPR armies for roster-level proxy suggestions and filtering.
+
+- **add_play_armylist_stl_choices.sql** – New table `play_armylist_stl_choices` (entry_id, mmf_id, sort_order) so each roster entry can have multiple STL choices (e.g. kitbashing). Used by "Choose STL for Roster" in the Army Builder unit details. Run with same PowerShell pattern as above (full path to mysql if needed).

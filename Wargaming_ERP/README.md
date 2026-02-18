@@ -79,3 +79,6 @@ Bulk Actions: Allowing you to "Unlink All" or "Set Designer Default" for entire 
 
 📌 Bookmarked (Digital Library):
 Direct download from STL Gallery: Backend proxy that uses MMF cookie/API key to call GET /objects/{id}/files and GET /files/{file_id}, then stream the file to the browser (e.g. st.download_button). Requires storing MMF auth in app config/env.
+
+## 📋 Feature Todo & Feasibility
+A full list of features and options with feasibility notes lives in **docs/Feature-Todo-Wargaming-ERP.md**. It covers: updated OPR data, MMF link fixes, image gallery per STL, link manager refinements, download buttons, auto hydrators/scrapers, user sign-up & permissions, hosting, security, GW retail data, New Recruit data, update process, and slicer integration. Use it to prioritize and plan.

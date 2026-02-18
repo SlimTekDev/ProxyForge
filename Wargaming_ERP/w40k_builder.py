@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import re
 from database_utils import get_db_connection
+from library_ui import render_inline_link_unit, render_roster_stl_section
 
 # --- 1. HELPER FUNCTIONS ---
 
@@ -80,7 +81,7 @@ def parse_wargear_option(text):
     #continued with show_40k_details
 
 @st.dialog("40K Unit Details", width="large")
-def show_40k_details(unit_id, entry_id=None, detachment_id=None):
+def show_40k_details(unit_id, entry_id=None, detachment_id=None, faction=None, game_system="40K_10E"):
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
     
@@ -113,6 +114,13 @@ def show_40k_details(unit_id, entry_id=None, detachment_id=None):
             else:
                 st.info("No visual available.")
         # ------------------------------------------
+        # Link unit + Choose STL for Roster
+        st.divider()
+        with st.expander("🔗 Link unit to STL", expanded=False):
+            render_inline_link_unit(unit_id, details["Unit_Name"], game_system, army_label=str(faction or ""))
+        if entry_id:
+            render_roster_stl_section(entry_id, unit_id, details["Unit_Name"], game_system, army_label=str(faction or ""))
+        st.divider()
 
         with col2:
             st.subheader(details['Unit_Name'])
@@ -664,7 +672,7 @@ def run_40k_builder(active_list):
                         txt += f" | 🔧 {', '.join(json.loads(row['wargear_list']))}"
                     st.caption(txt)
                 with r_view:
-                    if st.button("👁️", key=f"v_{row['entry_id']}"): show_40k_details(row['unit_id'], entry_id=row['entry_id'], detachment_id=active_det_id)
+                    if st.button("👁️", key=f"v_{row['entry_id']}"): show_40k_details(row['unit_id'], entry_id=row['entry_id'], detachment_id=active_det_id, faction=active_list.get('faction_primary'), game_system='40K_10E')
                 with r_del:
                     if st.button("❌", key=f"d_{row['entry_id']}"):
                         cursor.execute("DELETE FROM play_armylist_entries WHERE entry_id = %s", (row['entry_id'],))

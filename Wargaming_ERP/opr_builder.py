@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 from database_utils import get_db_connection
+from library_ui import render_inline_link_unit, render_roster_stl_section
 
 #  ---- Stable Release 1.0 ----
 
@@ -152,7 +153,7 @@ def show_opr_gameday_view(active_list, roster_df, total_pts):
 
 
 @st.dialog("OPR Unit Details", width="large")
-def show_opr_details(unit_id, entry_id=None, faction=None):
+def show_opr_details(unit_id, entry_id=None, faction=None, game_system="grimdark-future"):
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
     
@@ -181,6 +182,13 @@ def show_opr_details(unit_id, entry_id=None, faction=None):
                 caption=f"Visual Reference: {default_stl['name']}"
             )
         # -----------------------------------------------
+        # Link unit + Choose STL for Roster
+        st.divider()
+        with st.expander("🔗 Link unit to STL", expanded=False):
+            render_inline_link_unit(unit_id, unit["name"], game_system, army_label=str(faction or ""))
+        if entry_id:
+            render_roster_stl_section(entry_id, unit_id, unit["name"], game_system, army_label=str(faction or ""))
+        st.divider()
 
         type_label = unit.get('generic_name') if unit.get('generic_name') else unit.get('faction', 'Unit')
         st.subheader(f"🛡️ {unit['name']} ({type_label})")
@@ -470,7 +478,7 @@ def run_opr_builder(active_list):
             st.rerun()
             
         if btn_col2.button("👁️ Info", key=f"det_lib_{u_id}_{active_id}", use_container_width=True):
-            show_opr_details(u_id, entry_id=None, faction=unit['faction'])
+            show_opr_details(u_id, entry_id=None, faction=unit['faction'], game_system=active_list.get('game_system') or 'grimdark-future')
         
         st.sidebar.divider()
 
@@ -497,7 +505,7 @@ def run_opr_builder(active_list):
                         clean_fallback = str(row['wargear_list']).replace('[', '').replace(']', '').replace('"', '')
                         r1.caption(f"🔧 {clean_fallback}")
                 if r2.button("👁️", key=f"rd_opr_{row['entry_id']}"):
-                    show_opr_details(row['unit_id'], row['entry_id'], faction=active_list['faction_primary'])
+                    show_opr_details(row['unit_id'], row['entry_id'], faction=active_list['faction_primary'], game_system=active_list.get('game_system') or 'grimdark-future')
                 if r3.button("❌", key=f"del_opr_{row['entry_id']}"):
                     cursor.execute("DELETE FROM play_armylist_entries WHERE entry_id = %s", (row['entry_id'],))
                     conn.commit(); st.rerun()
