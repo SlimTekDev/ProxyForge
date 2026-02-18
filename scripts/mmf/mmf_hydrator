@@ -1,0 +1,49 @@
+import json
+import mysql.connector
+
+DB_CONFIG = {
+    "host": "127.0.0.1",
+    "user": "hobby_admin",
+    "password": "Warhammer40K!",
+    "database": "wargaming_erp"
+}
+
+JSON_PATH = r""C:\Users\slimm\Desktop\WahapediaExport\mmf Data import\mmf_download.json"" # UPDATE THIS PATH
+
+def hydrate_mmf_library():
+    try:
+        with open(JSON_PATH, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+    except Exception as e:
+        print(f"❌ Error loading JSON: {e}")
+        return
+
+    conn = mysql.connector.connect(**DB_CONFIG)
+    cursor = conn.cursor()
+
+    sql = """
+        INSERT INTO stl_library (mmf_id, name, creator_name, preview_url, mmf_url)
+        VALUES (%s, %s, %s, %s, %s)
+        ON DUPLICATE KEY UPDATE 
+            name = VALUES(name),
+            preview_url = VALUES(preview_url)
+    """
+
+    print(f"🚀 Hydrating {len(data)} STL entries...")
+    
+    for obj in data:
+        val = (
+            obj.get('id'),
+            obj.get('name'),
+            obj.get('creator', {}).get('name'),
+            obj.get('previewUrl'),
+            f"https://www.myminifactory.com{obj.get('url')}"
+        )
+        cursor.execute(sql, val)
+
+    conn.commit()
+    conn.close()
+    print(f"✅ Digital Library Hydrated!")
+
+if __name__ == "__main__":
+    hydrate_mmf_library()

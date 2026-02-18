@@ -1,0 +1,26 @@
+Prompt for getting Google AI back on track for development:
+
+
+The "Wargaming ERP v1.0" Recovery Prompt
+"I am working on a Streamlit Wargaming ERP. We have reached Stable v1.0.
+Architecture: MySQL backend with hobby_admin user.
+Data: 3,727 OPR units hydrated with composite keys (opr_unit_id, game_system).
+Logic: run_opr_builder handles sub-faction parent linking (e.g., Blood Prime -> Prime Brothers) and tracks model counts (size).
+UI: show_opr_details uses reactive tabs for Casters and Unicode strikethroughs for weapon swaps.
+Next Objective: Initialize Phase 4: 3D Model Library & Armory Dashboard to track physical/digital inventory vs. roster requirements."
+
+
+
+Latest Prompt (Use this to restart where we were in development:
+
+"I am working on the Wargaming ERP Streamlit app. We are at v1.1 (Stable STL Integration).
+Current Tech Stack: MySQL (hobby_admin), Streamlit, OPR Hydrated Data (3.7k units).
+Active Features:
+Digital Vault: stl_library holds MMF metadata and renders. stl_unit_links handles many-to-many mapping between STLs and units.
+Logic: library_ui.py has a 4-column gallery and a 'Manage Links' tab with an exclusivity toggle for is_default images.
+Stable Fixes: MMF URL parser is corrected for /object/3d-print/ paths; database schema updated with is_default and unique_link_pair.
+Next Objective: Implement the Visual Roster Update—modifying show_opr_details to fetch and display the is_default STL render at the top of unit data cards, then moving to Phase 5: Physical Inventory Tracking."
+
+
+"Returning to Wargaming ERP v1.1. STL Gallery and Many-to-Many Linking are stable.
+Next Task: Refining the Link Manager in library_ui.py. We need to move from a basic data editor to a high-utility management dashboard with thumbnails, 'Army-level' filtering, and coverage audits."

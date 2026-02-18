@@ -1,0 +1,116 @@
+import json
+import mysql.connector
+from mysql.connector import Error
+
+# --- CONFIGURATION ---
+FILE_PATH = r"C:\Users\slimm\Desktop\WahapediaExport\OPR Data Export\data.json"
+
+DB_CONFIG = {
+    'user': 'root',
+    'password': 'Warhammer40K!', 
+    'host': 'localhost',
+    'database': 'Wargaming_ERP'
+}
+
+def import_opr_master_data():
+    conn = None
+    try:
+        print(f"--- 📂 Opening file: {FILE_PATH} ---")
+        with open(FILE_PATH, 'r', encoding='utf-8') as f:
+            raw_data = json.load(f)
+        
+        # 1. NORMALIZE DATA STRUCTURE
+        # If the JSON has an 'armies' key (Full Export), we want that list.
+        # If it's just a single book, we wrap it in a list.
+        if isinstance(raw_data, dict) and "armies" in raw_data:
+            army_books = raw_data["armies"]
+            game_name = raw_data.get("name", "OPR")
+            print(f"--- 🛰️ Detected Full Game Export: {game_name} ---")
+        elif isinstance(raw_data, list):
+            army_books = raw_data
+        else:
+            army_books = [raw_data]
+
+        # 2. CONNECT TO DATABASE
+        conn = mysql.connector.connect(**DB_CONFIG)
+        cursor = conn.cursor()
+        print(f"--- ✅ Connected to MySQL database ---")
+
+        total_units_imported = 0
+
+        for book in army_books:
+            army_name = book.get('name', 'Unknown Army')
+            units = book.get('units', [])
+            
+            if not units:
+                print(f"--- ⚠️ Skipping {army_name}: No units found in this block. ---")
+                continue
+
+            print(f"--- 📥 Importing Army: {army_name} ({len(units)} units) ---")
+
+            # 3. IMPORT GLOBAL SPECIAL RULES
+            special_rules = book.get('specialRules', [])
+            for rule in special_rules:
+                cursor.execute("""
+                    INSERT IGNORE INTO opr_SpecialRules (rule_id, name, description) 
+                    VALUES (%s, %s, %s)
+                """, (rule.get('id'), rule.get('name'), rule.get('description', '')))
+
+            # 4. IMPORT UNITS
+            for unit in units:
+                u_id = unit.get('id')
+                u_name = unit.get('name')
+                
+                # Check for 'Hero' status
+                u_rules = unit.get('specialRules', [])
+                is_hero = any(r.get('name') == 'Hero' for r in u_rules)
+                
+                cursor.execute("""
+                    INSERT INTO opr_Units (opr_unit_id, name, army, base_cost, round_base_mm, is_hero)
+                    VALUES (%s, %s, %s, %s, %s, %s)
+                    ON DUPLICATE KEY UPDATE base_cost=VALUES(base_cost), name=VALUES(name), army=VALUES(army)
+                """, (u_id, u_name, army_name, unit.get('cost', 0), unit.get('baseSize', 32), is_hero))
+
+                # 5. UNIT -> RULES JUNCTION
+                for rule in u_rules:
+                    raw_rating = rule.get('rating')
+                    try:
+                        rating = int(raw_rating) if raw_rating else None
+                    except (ValueError, TypeError):
+                        rating = None
+                    
+                    cursor.execute("""
+                        INSERT IGNORE INTO opr_UnitRules (unit_id, rule_id, rating, label)
+                        VALUES (%s, %s, %s, %s)
+                    """, (u_id, rule.get('id'), rating, rule.get('name')))
+
+                # 6. UNIT -> WEAPONS JUNCTION
+                for equip in unit.get('equipment', []):
+                    if 'attacks' in equip:
+                        w_rules = equip.get('specialRules', [])
+                        w_rules_str = ", ".join([r.get('name', '') for r in w_rules if r.get('name')])
+                        
+                        cursor.execute("""
+                            INSERT IGNORE INTO opr_UnitWeapons (unit_id, weapon_label, attacks, ap, special_rules, count)
+                            VALUES (%s, %s, %s, %s, %s, %s)
+                        """, (u_id, equip.get('name', 'Weapon'), equip.get('attacks', 0), 
+                              equip.get('ap', 0), w_rules_str, equip.get('count', 1)))
+                
+                total_units_imported += 1
+
+        conn.commit()
+        print(f"--- 🏁 Success! Total Units Processed: {total_units_imported} ---")
+
+    except Error as e:
+        print(f"❌ Database Error: {e}")
+    except Exception as e:
+        print(f"❌ Unexpected Error: {e}")
+        import traceback
+        traceback.print_exc()
+    finally:
+        if conn and conn.is_connected():
+            cursor.close()
+            conn.close()
+
+if __name__ == "__main__":
+    import_opr_master_data()

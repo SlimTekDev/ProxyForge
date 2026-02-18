@@ -1,0 +1,261 @@
+SPECIAL RULES
+13
+RULES PRIORITY & STACKING EFFECTS
+Most units have one or more special rules that affect the way they
+behave, and that sometimes go against the standard rules. When
+you come across one of these situations, the special rule always
+takes precedence over the standard rules.
+If multiple special rules happen at the same time, and it’s not clear
+which should be done first, if all the rules affect only one player,
+then that player may decide the order. If the rules affect multiple
+players, then the players roll-off and the winner picks the order.
+Effects from multiple instances of the same special rule or spell
+don’t stack, unless it is a rule with (X) in its name, or unless it is
+specified otherwise.
+SPECIAL RULES REFERENCE
+Aircraft
+May only use Advance actions, moving in a straight line, and adding
+30” to its total move (even if Shaken). Aircraft ignore all units and
+terrain when moving and stopping, can’t seize or contest
+objectives, can’t be charged, and units targeting them get -12” to
+their range.
+Note that since Aircraft are flying high above the ground, only the
+actual model counts (base doesn’t block movement or line of sight,
+and units may move and shoot under it). Aircraft can’t move into
+the table edges to move less than 30”, and their mandatory move
+doesn’t break the staying idle requirement to stop being Shaken.
+Ambush
+May be set aside before deployment. At the start of any round after
+the first, may be deployed anywhere over 9” away from enemy
+units. Players alternate in placing Ambushers, starting with the
+player that activates next. Units that deploy via Ambush can’t seize
+or contest objectives on the round they deploy.
+AP(X)
+Targets get -X to Defense rolls when blocking hits from weapons
+with this special rule.
+Artillery
+May only use Hold actions. When this model shoots at enemies over
+9" away, it gets +1 to hit rolls. When enemy units shoot at this
+model from over 9" away, they get -2 to hit rolls.
+Bane
+Ignores Regeneration, and when attacking the target must re-roll
+unmodified Defense results of 6.
+Note that a die roll may only be re-rolled once, so if another 6 is
+rolled after re-rolling Defense, then the hit is blocked.
+Blast(X)
+Ignores cover, and after resolving other special rules, each hit is
+multiplied by X, where X is up to as many hits as models in the
+target unit.
+Example: A weapon with 2 Attacks and Blast(3) scores two hits
+against a unit with 2 models. Each hit is multiplied by 2, so the target
+takes a total of 4 hits.
+Caster(X)
+Gets X spell tokens at the start of each round, but can’t hold more
+than 6 tokens at once. At any point before attacking, spend as
+many tokens as the spell’s value to try casting one or more spells
+(only one try per spell). Roll one die, on 4+ resolve the effect on a
+target in line of sight. Models within 18” in line of sight of the
+caster’s unit may spend any number of spell tokens at the same
+time before rolling, to give the caster +1/-1 to the roll per token.
+Note that Casters get spell tokens each round even if they are not
+on the table (waiting to Ambush for example), and that the Caster’s
+spells must be picked from their own faction.
+Counter
+Strikes first with this weapon when charged, and the charging unit
+gets -1 total Impact rolls per model with Counter.
+Example: A model with Impact(3) charges a unit with 1 model that
+has Counter, so it only makes 2 Impact rolls.
+Deadly(X)
+Assign each wound to one model, and multiply it by X. Hits from
+Deadly must be resolved first, and these wounds don’t carry over to
+other models if the original target is killed.
+Fast
+Models with this special rule move +2” when using Advance and +4”
+when using Rush/Charge.
+Fear(X)
+This model counts as having dealt +X wounds when checking who
+won melee.
+Fearless
+When a unit where all models have this rule fails a morale test, roll
+one die. On a 4+ it counts as passed instead.
+Flying
+Models with this special rule may move through units and terrain,
+and ignore terrain effects whilst moving.
+SPECIAL RULES
+14
+Furious
+When charging, unmodified results of 6 to hit in melee deal 1 extra
+hit (only the original hit counts as a 6 for special rules).
+Example: A Furious model with a weapon with 1 Attack and Rending
+scores one hit on a roll of 6, so it deals two hits, of which only the first
+counts as having AP(+4) because of Rending.
+Hero
+Heroes with up to Tough(6) may deploy as part of one multi-model
+unit without another Hero. The hero may take morale tests on
+behalf of the unit, but must use the unit’s Defense until all other
+models have been killed.
+Note that when a Hero joins a unit, they count as part of that unit,
+so the unit’s size is increased by 1, and even if the hero is the last
+model remaining, it takes morale tests as the unit. This also means
+that a hero may never leave its unit or join another one.
+Example: A Hero joins a unit of [5] models, so the unit’s size is [6].
+Once all other models have been killed, the Hero must take a morale
+test whenever it takes wounds, and if it fails a morale test in melee it
+will Rout, because it’s a unit with half or less of its starting size.
+Immobile
+Models with this special rule may only use Hold actions.
+Impact(X)
+Roll X dice when attacking after charging, unless fatigued. For each
+2+ the target takes one hit.
+Indirect
+Gets -1 to hit rolls when shooting after moving. May target enemies
+that are not in line of sight as if in line of sight, and ignores cover
+from sight obstructions.
+Limited
+Weapons with this rule may only be used once per game.
+Regeneration
+When a unit where all models have this rule takes wounds, roll one
+die for each. On a 5+ it is ignored.
+Relentless
+When this model shoots at enemies over 9" away, unmodified
+results of 6 to hit deal 1 extra hit (only the original hit counts as a 6
+for special rules).
+Note: See examples from the Furious special rule for clarifications.
+Reliable
+Models attacks at Quality 2+ with this weapon.
+Note that Reliable only changes the Quality value, so the roll can
+still be modified, Fatigue still applies, etc.
+Rending
+Ignores Regeneration, and on unmodified results of 6 to hit, those
+hits get AP(+4).
+Scout
+May be set aside before deployment. After all other units are
+deployed, may be deployed anywhere fully within 12” of their
+deployment zone. Players alternate in placing Scout units, starting
+with the player that activates next.
+Slow
+Models with this special rule move -2” when using Advance, and -4”
+when using Rush/Charge.
+Stealth
+When units where all models have this rule are shot from over 9"
+away, enemy units get -1 to hit rolls.
+Strider
+May ignore the effects of difficult terrain when moving.
+Surge
+On unmodified results of 6 to hit, this weapon deals 1 extra hit (only
+the original hit counts as a 6 for special rules).
+Takedown
+This model may pick any model in the target unit as its individual
+target, which is resolved as if it was a unit of [1]. Takedown attacks
+must be resolved before other weapons.
+Note that other models in the target’s unit don’t block line of sight
+or provide cover to the target model in the unit.
+Example: A Hero with Stealth in a unit without Stealth is targeted by
+a Takedown weapon. Since it’s resolved as a unit of [1], the attacker
+gets -1 to hit from Stealth.
+Thrust
+When charging, gets +1 to hit rolls and AP(+1) in melee.
+SPECIAL RULES
+15
+Tough(X)
+This model must take X wounds before being killed. If a model with
+tough joins a unit without it, then it is removed last when the unit
+takes wounds. You must continue to put wounds on the tough
+model with most wounds in the unit until it is killed, before starting
+to put them on the next tough model (heroes must be assigned
+wounds last, even if already wounded).
+Transport(X)
+May transport up to X models or Heroes with up to Tough(6), and
+non-Heroes with up to Tough(3) which occupy 3 spaces each.
+Transports may deploy with units inside, and units may enter/exit
+by using any move action, but must stay fully within 6" of it when
+exiting. Units inside/outside transports may not target other units
+outside/inside transports, but may target the transport itself. When
+a transport is destroyed, units inside must take a dangerous terrain
+test, are Shaken, and must be placed fully within 6” of the transport
+before it’s removed.
+Note that units inside Transports are deployed at the same time as
+the Transport, and units can’t both embark/disembark as part of
+the same activation. Units may use Charge actions to disembark,
+and they ignore the 1” move restriction when embarking (only one
+model needs to reach the Transport for everyone to embark).
+Example: Regular models and Heroes with Tough(3) or Tough(6)
+occupy 1 space, Tough(3) models occupy 3 spaces, and models with
+Tough(6) or higher can’t be transported. This means that a unit of 10
+regular models with a Tough(3) Hero occupy 11 spaces in total.
+Unstoppable
+Ignores Regeneration, and ignores all negative modifiers to this
+weapon.
+
+PRE -MADE RULE PACKS
+16
+USING PRE -MADE RULE PACKS
+The advanced rules were designed to give players the freedom to
+customize their gaming experience however they like, to play the
+version of the game that is perfect for them.
+In order to help new players get started with the advanced rules,
+we have provided pre-made rules packs, which allow you to play a
+tailor-made version of the game in no-time.
+Before the game, players can agree to use one of the following rules
+packs in the game:
+• Extended Core Pack
+• Added Complexity Pack
+• Competitive Play Pack
+• Narrative Battles Pack
+• Chaotic Rules Pack
+Note that you shouldn’t feel limited by these pre-made packs, and
+you can freely add or remove rules from any of them, to get the
+best version of these packs for you.
+EXTENDED CORE PACK
+Adds a few extras to the core rules, whilst keeping things light.
+To play with this pack, use the following rules:
+• Advanced Terrain - Solid Buildings
+• Advanced Deployment Styles
+• Advanced Missions - Extra Missions
+• Extra Actions
+ADDED COMPLEXITY PACK
+Extra rules that add more complexity to the game.
+To play with this pack, use the following rules:
+• Advanced Terrain - Solid Buildings
+• Advanced Deployment Styles
+• Advanced Missions - Extra Missions
+• Advanced Missions - Side-Missions
+• Advanced Actions - Extra Actions
+• Advanced Actions - Action Boosting
+• Advanced Casting - Currents of Power
+• Advanced Casting - Living Spells
+• Command Points
+
+
+
+
+
+
+
+COMPETITIVE PLAY PACK
+Extends the rules with more options for competitive play.
+To play with this pack, use the following rules:
+• Advanced Deployment Styles
+• Advanced Missions - Extra Missions
+• Advanced Missions - Side-Missions
+NARRATIVE BATTLES PACK
+Additional rules with small twists that help build a narrative.
+To play with this pack, use the following rules:
+• Advanced Terrain - Terrain Generator
+• Advanced Terrain - Army Terrain
+• Advanced Deployment Styles
+• Advanced Missions - Extra Missions
+• Advanced Actions - Hero & Monster Feats
+• Advanced Casting - Relic Wargear
+• Fog of War
+• Unit Psychology
+CHAOTIC RULES PACK
+Lots of randomness which can be less balanced, but more fun.
+To play with this pack, use the following rules:
+• Advanced Terrain - Terrain Placement
+• Advanced Deployment Styles
+• Battlefield Effects - Special Conditions
+• Battlefield Effects - Terrain & Objective Effects
+• Random Events
+• Brutal Damage
+• Twists & Gambits
