@@ -18,6 +18,7 @@ from __future__ import annotations
 import argparse
 import csv
 import os
+import re
 from pathlib import Path
 
 try:
@@ -57,6 +58,19 @@ def _cell(v):
     if v is None:
         return None
     s = (v.strip() if isinstance(v, str) else str(v)).strip()
+    return s if s else None
+
+
+def _strip_html(text: str | None) -> str | None:
+    """Remove HTML tags and decode common entities for abilities/descriptions at intake."""
+    if text is None:
+        return None
+    s = str(text).strip()
+    if not s:
+        return None
+    s = re.sub(r"<[^>]+>", "", s)
+    s = s.replace("&nbsp;", " ").replace("&amp;", "&").replace("&lt;", "<").replace("&gt;", ">").replace("&quot;", '"').replace("&#39;", "'").replace("&apos;", "'")
+    s = " ".join(s.split())
     return s if s else None
 
 
@@ -319,8 +333,8 @@ def run_abilities_from_datasheets_abilities(cursor, data_dir: Path, dry_run: boo
             aid = str(int(float(aid))).zfill(9) if "." in str(aid) else str(int(aid)).zfill(9)
         if not aid:
             continue
-        name = _cell(r.get("name"))
-        desc = _cell(r.get("description"))
+        name = _strip_html(_cell(r.get("name"))) or _cell(r.get("name"))
+        desc = _strip_html(_cell(r.get("description"))) or _cell(r.get("description"))
         if aid not in seen or (name or desc):
             seen[aid] = (name, desc)
     if not seen:
@@ -365,8 +379,8 @@ def run_datasheets_abilities(cursor, data_dir: Path, dry_run: bool, verbose: boo
             except (ValueError, TypeError):
                 pass
         model = _cell(r.get("model"))
-        name = _cell(r.get("name"))
-        desc = _cell(r.get("description"))
+        name = _strip_html(_cell(r.get("name"))) or _cell(r.get("name"))
+        desc = _strip_html(_cell(r.get("description"))) or _cell(r.get("description"))
         type_ = _cell(r.get("type"))
         if not ds_id:
             continue

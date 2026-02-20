@@ -239,10 +239,24 @@ def _dedupe_stratagems(strats):
     return out
 
 
+# Sentinel for "Custom (mix chapters)" so validation allows mixed chapter units
+CHAPTER_CUSTOM = "CUSTOM"
+
+
 def show_40k_validation(list_id, proxy_mode=False):
-    """Queries Keyword-Strict SQL View and displays alerts. Adds enhancement cap (max 3, all different) and warlord (at least one Character)."""
+    """Queries Keyword-Strict SQL View and displays alerts. Adds enhancement cap (max 3, all different) and warlord (at least one Character). When chapter is CUSTOM, allows mixed chapters (no chapter mismatch errors)."""
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
+    allow_custom_chapter = False
+    try:
+        cursor.execute("SELECT chapter_subfaction FROM play_armylists WHERE list_id = %s", (list_id,))
+        row = cursor.fetchone()
+        if row and (row.get("chapter_subfaction") or "").strip() == CHAPTER_CUSTOM:
+            allow_custom_chapter = True
+    except Exception:
+        pass
+    allow_mixed_chapters = proxy_mode or allow_custom_chapter
+
     query = "SELECT unit_name, times_taken, max_allowed, faction_status FROM view_list_validation_40k WHERE list_id = %s"
     df_val = pd.read_sql(query, conn, params=(list_id,))
 
@@ -293,8 +307,11 @@ def show_40k_validation(list_id, proxy_mode=False):
         st.sidebar.subheader("⚖️ List Validation")
 
         if not mismatches.empty:
-            if proxy_mode:
-                st.sidebar.info("✨ **Proxy Mode Active**: Chapter/Legion restrictions bypassed.")
+            if allow_mixed_chapters:
+                if allow_custom_chapter and not proxy_mode:
+                    st.sidebar.info("✨ **Custom Chapter**: Mixed chapters allowed.")
+                else:
+                    st.sidebar.info("✨ **Proxy Mode Active**: Chapter/Legion restrictions bypassed.")
             else:
                 st.sidebar.error("☢️ **Chapter Mismatch Found**")
                 for _, row in mismatches.iterrows():
@@ -316,7 +333,7 @@ def show_40k_validation(list_id, proxy_mode=False):
         st.sidebar.caption("Wargear: slot/count limits are not validated.")
 
         is_battle_ready = (
-            violations.empty and (mismatches.empty or proxy_mode)
+            violations.empty and (mismatches.empty or allow_mixed_chapters)
             and not enh_over and not enh_dupe and has_character
         )
         if is_battle_ready:
@@ -412,8 +429,9 @@ def _split_and_list(s):
 def parse_wargear_option(text):
     """
     Parse wargear option text into structured rule for UI and weapon counts.
-    Returns: type in swap_1_1 | swap_multi | any_number | per_N_models | simple,
-    plus who (model type), removed, added, and for per_N_models: every_N, slots_per_N, options (list of added-lists).
+    Returns: type in swap_1_1 | swap_multi | any_number | per_N_models | equipped_with | nested | simple,
+    plus who (model type), removed, added; for per_N_models: every_N, slots_per_N, options;
+    for equipped_with: added (list of one item), max (0..N).
     """
     if not text:
         return {"type": "none"}
@@ -561,6 +579,27 @@ def parse_wargear_option(text):
         if removed and added:
             return {"type": "swap_multi", "who": "Model", "removed": removed, "added": added}
 
+    # --- "This model can be equipped with 1 X" / "with one X" / "with up to N X" (add optional wargear, no swap)
+    equipped = re.search(
+        r"this\s+model\s+can\s+be\s+equipped\s+with\s+(?:up\s+to\s+)?(?:1|one)\s+(.+?)(?:\.|$)",
+        t_lower,
+        re.IGNORECASE | re.DOTALL,
+    )
+    if equipped:
+        item = equipped.group(1).strip().strip(".").strip()
+        if len(item) > 1:
+            return {"type": "equipped_with", "added": [item], "max": 1}
+    equipped_n = re.search(
+        r"this\s+model\s+can\s+be\s+equipped\s+with\s+up\s+to\s+(\d+)\s+(.+?)(?:\.|$)",
+        t_lower,
+        re.IGNORECASE | re.DOTALL,
+    )
+    if equipped_n:
+        n = int(equipped_n.group(1))
+        item = equipped_n.group(2).strip().strip(".").strip()
+        if n >= 1 and len(item) > 1:
+            return {"type": "equipped_with", "added": [item], "max": min(n, 10)}
+
     # Legacy: nested "one of the following" without "for every N models"
     if "one of the following:" in t_lower:
         parts = re.split(r"one of the following:", t, flags=re.IGNORECASE)
@@ -668,6 +707,8 @@ def _apply_wargear_to_counts(base_counts, options_with_parsed, selections, quant
             added_list = _split_and_list(sel)
             subtract([parsed.get("target", "")], 1)
             add(added_list, 1)
+        elif ptype == "equipped_with" and isinstance(sel, int) and sel > 0:
+            add(parsed.get("added", []), sel)
     return counts
 
 
@@ -1246,6 +1287,17 @@ def _show_40k_details_impl(unit_id, entry_id=None, detachment_id=None, faction=N
                                     save_wargear_state(entry_id, new_selections, summary)
                                     st.rerun()
 
+                            elif ptype == "equipped_with":
+                                max_val = parsed.get("max") or 1
+                                current = new_selections[idx] if isinstance(new_selections[idx], int) else 0
+                                n = st.number_input("How many equipped?", min_value=0, max_value=max_val, value=min(current, max_val), key=f"wopt_{entry_id or unit_id}_{idx}_eq")
+                                if n != current and entry_id is not None:
+                                    new_selections[idx] = n
+                                    final = _apply_wargear_to_counts(base_counts, list(zip(options_descs, options_parsed)), new_selections, unit_quantity)
+                                    summary = ", ".join(f"{c}× {w}" for w, c in sorted(final.items(), key=lambda x: (-x[1], x[0])) if c) or "Default"
+                                    save_wargear_state(entry_id, new_selections, summary)
+                                    st.rerun()
+
                             else:
                                 st.caption("(Unsupported option type)")
 
@@ -1276,8 +1328,8 @@ def _show_40k_details_impl(unit_id, entry_id=None, detachment_id=None, faction=N
                 if unit_abilities:
                     for ab in unit_abilities:
                         ab_type = (ab.get('type') or '').strip()
-                        name = (ab.get('ab_name') or '').strip()
-                        desc = (ab.get('ab_desc') or "").strip()
+                        name = _strip_html((ab.get('ab_name') or '').strip())
+                        desc = _strip_option_html((ab.get('ab_desc') or "").strip())
                         if ab_type and ab_type.lower() == 'faction':
                             # Avoid "Unnamed Ability" when faction ability name is missing (e.g. not yet loaded from Abilities.csv)
                             label = name if name else "FACTION (army rule)"
@@ -2064,8 +2116,8 @@ def run_40k_builder(active_list):
     show_points_summary(active_list, total_pts)
     
     st.sidebar.divider()
-    proxy_mode = st.sidebar.toggle("🔓 Proxy / Custom Chapter Mode", value=False, 
-                                   help="Bypasses Chapter/Legion restrictions for search and validation.",
+    proxy_mode = st.sidebar.toggle("🔓 Proxy Mode (bypass all restrictions)", value=False,
+                                   help="Bypass chapter and validation restrictions (e.g. narrative/proxy lists). For mixed chapters only, use 'Custom (mix chapters)' in Chapter instead.",
                                    key=f"proxy_master_{list_id}")
 
     show_40k_validation(list_id, proxy_mode=proxy_mode)
@@ -2100,16 +2152,21 @@ def run_40k_builder(active_list):
         cursor.execute(f"SELECT DISTINCT keyword FROM waha_datasheets_keywords dk JOIN waha_datasheets d ON dk.datasheet_id = d.waha_datasheet_id JOIN waha_factions f ON d.faction_id = f.id WHERE (f.name = %s OR f.id = 'SM') AND dk.keyword NOT IN ({exclude_placeholders}) AND dk.is_faction_keyword = 1", [primary_army] + exclude_list)
         subfactions = [f['keyword'] for f in cursor.fetchall()]
         if subfactions:
-            options = ["Generic / All"] + sorted(subfactions)
+            options = ["Generic / All"] + sorted(subfactions) + ["Custom (mix chapters)"]
             try:
-                default_idx = options.index(saved_chapter) if saved_chapter and saved_chapter in options else 0
+                if saved_chapter == CHAPTER_CUSTOM:
+                    default_idx = options.index("Custom (mix chapters)")
+                elif saved_chapter and saved_chapter in options:
+                    default_idx = options.index(saved_chapter)
+                else:
+                    default_idx = 0
             except (ValueError, TypeError):
                 default_idx = 0
-            selected_sub = st.sidebar.selectbox("Select Chapter", options, index=min(default_idx, len(options) - 1), key=f"subfac_{list_id}")
-            if selected_sub != "Generic / All":
+            selected_sub = st.sidebar.selectbox("Select Chapter", options, index=min(default_idx, len(options) - 1), key=f"subfac_{list_id}", help="Generic = all faction units. Pick a chapter to filter. Custom = mix units from any chapter (e.g. successor/homebrew).")
+            if selected_sub not in ("Generic / All", "Custom (mix chapters)"):
                 library_subfaction = selected_sub
-            # Persist so view_list_validation_40k and reloads use it
-            new_chapter = selected_sub if selected_sub != "Generic / All" else None
+            # Persist so view_list_validation_40k and reloads use it; CUSTOM = allow mixed chapters
+            new_chapter = CHAPTER_CUSTOM if selected_sub == "Custom (mix chapters)" else (selected_sub if selected_sub != "Generic / All" else None)
             if new_chapter != saved_chapter:
                 try:
                     cursor.execute("UPDATE play_armylists SET chapter_subfaction = %s WHERE list_id = %s", (new_chapter, list_id))
@@ -2290,7 +2347,8 @@ def run_40k_builder(active_list):
     # 1. Header & Mode Toggle
     header_col, toggle_col = st.columns([0.7, 0.3])
     with header_col:
-        chapter_label = f" ({saved_chapter})" if is_space_marine and saved_chapter else ""
+        _ch_display = "Custom chapter" if saved_chapter == CHAPTER_CUSTOM else saved_chapter
+        chapter_label = f" ({_ch_display})" if is_space_marine and saved_chapter else ""
         st.title(f"🛡️ Roster: {active_list['list_name']}{chapter_label}")
     with toggle_col:
         if not st.session_state.gameday_mode:
@@ -2347,7 +2405,8 @@ def run_40k_builder(active_list):
             det_rule = None
 
         if found_rule or det_rule:
-            exp_label = f"📜 {primary_army}" + (f" ({saved_chapter})" if is_space_marine and saved_chapter else "") + " Army & Detachment Rules"
+            _ch_display = "Custom chapter" if saved_chapter == CHAPTER_CUSTOM else saved_chapter
+            exp_label = f"📜 {primary_army}" + (f" ({_ch_display})" if is_space_marine and saved_chapter else "") + " Army & Detachment Rules"
             with st.expander(exp_label, expanded=False):
                 if found_rule:
                     st.subheader(f"🛡️ Army Rule: {found_rule.get('army_rule_name', '')}")
