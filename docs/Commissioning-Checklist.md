@@ -111,6 +111,21 @@ Open the app URL (e.g. https://proxyforge.streamlit.app). If any step fails, fix
 
 ---
 
+## Sharing for alpha testing
+
+After Part C passes, you can share the app URL with alpha testers.
+
+- [ ] **Access:** Anyone with the link can use the app (no login). Do not expose secrets or credentials in the UI or in shared text.
+- [ ] **Tell testers:**
+  - [ ] Alpha disclaimer: app is in alpha; feedback on broken flows, confusing UI, and what they tried to do is valuable.
+  - [ ] First load can be slow (Streamlit cold start; ask them to wait or refresh once if stuck).
+  - [ ] OPR Army Book Reference tab will show "data file not found" in the cloud deploy (expected).
+  - [ ] Digital Library shows content only if the cloud DB has STL/linking data.
+- [ ] **Optional:** Enable alpha logging (Part D) to inspect usage (page views, list creation) without PII.
+- [ ] **Example one-liner:** *"ProxyForge alpha: build 40K and OPR lists, add units from the library, and export. Link: [your URL]. First load can be slow; OPR Army Book tab may say data file not found. Feedback welcome."*
+
+---
+
 ## Part D: Alpha logging (optional)
 
 If you enabled `PROXYFORGE_ALPHA_LOGGING=1` and created `alpha_events`:

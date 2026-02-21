@@ -10,12 +10,13 @@ SELECT
   d.waha_datasheet_id AS id,
   d.name AS name,
   d.points_cost AS points,
-  f.name AS faction,
-  f.id AS faction_id,
-  f.parent_id AS parent_id,
+  COALESCE(f_id.name, f_name.name, d.faction_id) AS faction,
+  COALESCE(f_id.id, f_name.id) AS faction_id,
+  COALESCE(f_id.parent_id, f_name.parent_id) AS parent_id,
   '40K' AS game_system
 FROM waha_datasheets d
-JOIN waha_factions f ON d.faction_id = f.id
+LEFT JOIN waha_factions f_id ON LOWER(TRIM(d.faction_id)) COLLATE utf8mb4_unicode_ci = LOWER(TRIM(f_id.id)) COLLATE utf8mb4_unicode_ci
+LEFT JOIN waha_factions f_name ON f_id.id IS NULL AND LOWER(TRIM(d.faction_id)) COLLATE utf8mb4_unicode_ci = LOWER(TRIM(f_name.name)) COLLATE utf8mb4_unicode_ci
 UNION ALL
 SELECT
   o.opr_unit_id AS id,

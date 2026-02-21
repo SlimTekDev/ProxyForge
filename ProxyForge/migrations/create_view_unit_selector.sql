@@ -11,4 +11,4 @@ SELECT
   d.points_cost AS points_cost,
   d.image_url AS image_url
 FROM waha_datasheets d
-JOIN waha_factions f ON d.faction_id = f.id;
+JOIN waha_factions f ON d.faction_id COLLATE utf8mb4_unicode_ci = f.id COLLATE utf8mb4_unicode_ci;

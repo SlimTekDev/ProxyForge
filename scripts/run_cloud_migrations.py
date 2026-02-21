@@ -69,14 +69,41 @@ def _load_env(env_file: str) -> dict:
 
 
 def _run_file(conn, path: Path) -> None:
-    """Execute a migration file. Handles DELIMITER ;; for procedure files."""
+    """Execute a migration file. Handles DELIMITER ;; for procedure files and CREATE VIEW as single statement."""
     raw = path.read_text(encoding="utf-8", errors="replace")
+    # Normalize line endings so ";\n" split works on Windows (;\r\n -> ;\n)
+    raw = raw.replace("\r\n", "\n").replace("\r", "\n")
     # Remove DELIMITER lines (mysql CLI only)
     lines = [
         line for line in raw.split("\n")
         if not line.strip().upper().startswith("DELIMITER ")
     ]
     content = "\n".join(lines)
+
+    # View file: run DROP VIEW then CREATE VIEW as a single statement (avoids split issues)
+    if "CREATE VIEW" in content.upper() and ("END ;;" not in content and "END;;" not in content):
+        cursor = conn.cursor()
+        try:
+            for line in content.split("\n"):
+                s = line.strip()
+                if s.upper().startswith("DROP VIEW"):
+                    cursor.execute(s if s.endswith(";") else s + ";")
+                    break
+            # Match CREATE VIEW at line start only (avoid matching "Recreate view..." in comments)
+            create_match = re.search(
+                r"(?m)^\s*CREATE\s+(?:OR\s+REPLACE\s+)?(?:SQL\s+SECURITY\s+\w+\s+)?VIEW\s+",
+                content,
+                re.IGNORECASE,
+            )
+            if create_match:
+                view_sql = content[create_match.start() :].strip()
+                if not view_sql.endswith(";"):
+                    view_sql = view_sql + ";"
+                cursor.execute(view_sql)
+            conn.commit()
+        finally:
+            cursor.close()
+        return
 
     # Procedure file: contains "END ;;" — run DROP then CREATE PROCEDURE ... END as one statement
     if "END ;;" in content or "END;;" in content:

@@ -21,7 +21,7 @@ SELECT
    FROM waha_datasheets_keywords k
    WHERE k.datasheet_id = d.waha_datasheet_id) AS Keywords
 FROM waha_datasheets d
-JOIN waha_factions f ON d.faction_id = f.id
+JOIN waha_factions f ON d.faction_id COLLATE utf8mb4_unicode_ci = f.id COLLATE utf8mb4_unicode_ci
 JOIN waha_datasheets_models m ON d.waha_datasheet_id = m.datasheet_id
 JOIN (
   SELECT datasheet_id, MIN(line_id) AS min_line

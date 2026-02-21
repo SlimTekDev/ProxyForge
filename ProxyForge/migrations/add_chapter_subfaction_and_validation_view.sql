@@ -29,5 +29,5 @@ SELECT
 FROM play_armylist_entries e
 JOIN play_armylists l ON e.list_id = l.list_id
 JOIN waha_datasheets d ON e.unit_id = d.waha_datasheet_id
-JOIN waha_factions f ON d.faction_id = f.id
+JOIN waha_factions f ON d.faction_id COLLATE utf8mb4_unicode_ci = f.id COLLATE utf8mb4_unicode_ci
 GROUP BY e.list_id, e.unit_id, d.name, f.name, l.faction_primary, l.chapter_subfaction;

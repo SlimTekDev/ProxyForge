@@ -255,6 +255,32 @@ Use this if you did **not** use dump+restore (§3a)—e.g. you ran migrations on
 
 ---
 
+
+## 7a. Sharing for alpha testing
+
+Once the app is deployed and smoke-tested, you can share the app URL (e.g. `https://proxyforge.streamlit.app`) with alpha testers.
+
+**Access**
+
+- Anyone with the link can use the app; there is no login. Do not expose secrets or credentials in the UI or in shared text.
+
+**What to tell testers**
+
+- **Alpha disclaimer:** The app is in alpha; some flows may be rough or incomplete. Feedback on broken behaviour, confusing UI, and what they tried to do is valuable.
+- **Slow first load:** Streamlit Community Cloud often has cold starts (first load or after idle can take 30 seconds to a minute). If the page seems stuck, ask them to wait or refresh once.
+- **Known limitations:** The **OPR Army Book Reference** tab in the cloud deploy will show "data file not found" (that page expects a local data file not present in the cloud). The **Digital Library** shows content only if your cloud DB has the STL/linking data populated.
+- **What to report:** Which page or action failed, what they expected, and (if possible) faction/list they were building (e.g. "40K Orks, added Boyz from library, then clicked Export").
+
+**Optional: usage logging**
+
+- To see how testers move through the app (pages, list creation, etc.) without collecting PII, enable alpha logging: run **ProxyForge/migrations/add_alpha_events.sql** on the cloud DB and add `PROXYFORGE_ALPHA_LOGGING = "1"` to Streamlit secrets. Then query `alpha_events` (e.g. via `scripts/run_sql_cloud.py`) to inspect events. See §8.
+
+**Example one-liner for testers**
+
+- *"ProxyForge alpha: build 40K and OPR lists, add units from the library, and export. Link: [your URL]. First load can be slow; the OPR Army Book tab may say data file not found. Feedback welcome."*
+
+---
+
 ## 8. Optional: Alpha logging and debugging
 
 - **What’s included:** `ProxyForge/alpha_logging.py` is already wired in: when `PROXYFORGE_ALPHA_LOGGING=1`, the app logs **page views** (which nav page) and **feature events** (e.g. `list_created` with detail OPR/40K) to the `alpha_events` table. No PII by default (anonymous session ID, event type, page, short detail).

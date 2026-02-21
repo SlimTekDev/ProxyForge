@@ -11,7 +11,7 @@ SELECT DISTINCT
   a.name AS army_rule_name,
   a.description AS army_rule_desc
 FROM waha_factions f
-JOIN waha_datasheets d ON d.faction_id = f.id
+JOIN waha_datasheets d ON d.faction_id COLLATE utf8mb4_unicode_ci = f.id COLLATE utf8mb4_unicode_ci
 JOIN waha_datasheets_abilities da ON da.datasheet_id = d.waha_datasheet_id
 JOIN waha_abilities a ON da.ability_id = a.id
 WHERE da.type = 'Faction';

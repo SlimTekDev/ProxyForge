@@ -15,7 +15,7 @@ SELECT
   da.name AS detachment_rule_name,
   da.description AS detachment_rule_desc
 FROM waha_factions f
-JOIN waha_detachments d ON f.id = d.faction_id
-LEFT JOIN waha_abilities ar ON ar.faction_id = f.id
+JOIN waha_detachments d ON f.id COLLATE utf8mb4_unicode_ci = d.faction_id COLLATE utf8mb4_unicode_ci
+LEFT JOIN waha_abilities ar ON ar.faction_id COLLATE utf8mb4_unicode_ci = f.id COLLATE utf8mb4_unicode_ci
   AND ar.name IN ('Oath of Moment','Waaagh!','Dark Pacts','Synapse','Acts of Faith','Nurgle''s Gift','Blessings of Khorne','Power from Pain')
 LEFT JOIN waha_detachment_abilities da ON da.detachment_id = d.id;
