@@ -301,6 +301,8 @@ After recreating the views and procedures on the cloud DB, reload the Streamlit 
 | **C. Views exist** | `python scripts/run_sql_cloud.py "SHOW FULL TABLES WHERE Table_type = 'VIEW'"`. You should see view_master_picker, view_list_validation_40k, etc. If not, run **docs/Cloud-Post-Restore-Migration-Plan.md** (or `python scripts/run_cloud_migrations.py --env-file .env.cloud --full`). |
 | **D. Logs** | **Manage app** → **Logs**. Look for tracebacks (e.g. “table doesn’t exist”, “column not found”). That pinpoints the failing query or view. |
 
+**If roster/list names show "ΓÇÖ" instead of an apostrophe** (e.g. "GorkΓÇÖs Grin"): the DB stores UTF-8 but the connection wasn't using it. The app sets `charset='utf8mb4'` and `collation='utf8mb4_unicode_ci'` in `database_utils.py`; after pulling that change and redeploying, apostrophes should display correctly.
+
 **If the build fails with "Invalid requirement" or "Couldn't parse requirement" for requirements.txt** (e.g. `s\\x00t\\x00r\\x00e...` in the error): the file is saved as **UTF-16**. Re-save `ProxyForge/requirements.txt` as UTF-8 (no BOM), commit and push, then **Reboot app**.
 
 **If you suspect commits never made it to GitHub** (e.g. cloud app looks like an old wargaming_erp-era build):

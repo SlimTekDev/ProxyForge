@@ -25,6 +25,8 @@ def get_db_connection():
         autocommit=True,
         buffered=True,
         connection_timeout=10,
+        charset="utf8mb4",
+        collation="utf8mb4_unicode_ci",
     )
     # DigitalOcean and other managed MySQL require SSL for remote connections
     if host not in ("localhost", "127.0.0.1"):
