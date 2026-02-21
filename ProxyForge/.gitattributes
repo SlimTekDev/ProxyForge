@@ -1,2 +1,4 @@
 # Auto detect text files and perform LF normalization
 * text=auto
+# Ensure requirements.txt is LF-only (Streamlit Cloud fails if UTF-16 or CRLF)
+requirements.txt text eol=lf

@@ -301,12 +301,26 @@ After recreating the views and procedures on the cloud DB, reload the Streamlit 
 | **C. Views exist** | `python scripts/run_sql_cloud.py "SHOW FULL TABLES WHERE Table_type = 'VIEW'"`. You should see view_master_picker, view_list_validation_40k, etc. If not, run **docs/Cloud-Post-Restore-Migration-Plan.md** (or `python scripts/run_cloud_migrations.py --env-file .env.cloud --full`). |
 | **D. Logs** | **Manage app** → **Logs**. Look for tracebacks (e.g. “table doesn’t exist”, “column not found”). That pinpoints the failing query or view. |
 
+**If the build fails with "Invalid requirement" or "Couldn't parse requirement" for requirements.txt** (e.g. `s\\x00t\\x00r\\x00e...` in the error): the file is saved as **UTF-16**. Re-save `ProxyForge/requirements.txt` as UTF-8 (no BOM), commit and push, then **Reboot app**.
+
 **If you suspect commits never made it to GitHub** (e.g. cloud app looks like an old wargaming_erp-era build):
 
 1. **Check local git:** From repo root run `git status` and `git log -3 --oneline`. If you have uncommitted changes, commit them. If your branch is ahead of origin, your pushes may have failed.
 2. **Push explicitly:** `git push origin main` (or your branch). Fix any errors (auth, branch name, remote).
 3. **Confirm on GitHub:** Open the repo on GitHub in the browser. Open `ProxyForge/app.py` and check the Navigation radio: it should list all 5 options (OPR Army Builder, 40K Army Builder, OPR Army Book Reference, 40K Army Book Reference, Digital Library). If GitHub shows only 2 options, the right code was never pushed.
 4. **Force Streamlit to use latest:** In Streamlit Cloud → your app → **Manage app** → **Reboot app**. Or push an empty commit: `git commit --allow-empty -m "Trigger redeploy"` then `git push origin main`.
+
+**App still old after push — wrong repo or wrong path**
+
+If you pushed the latest code (e.g. commit f25b353) and GitHub shows the correct `ProxyForge/app.py` (5 nav options) but the live app still shows the old UI (e.g. only “Army Builder” and “Digital Library”), Streamlit is likely deploying from the **wrong repo** or the **wrong file path**.
+
+1. **Push first** (if you haven’t): `git push origin main`.
+2. **Streamlit Cloud → your app → Manage app → Settings.** Check:
+   - **Repository:** Must be the repo you just pushed to (e.g. `YourGitHubUser/WahapediaExport`). If it still says `wargaming_erp` or a different repo name, the app is building from that repo — change it to the repo that contains the current ProxyForge code (the one with `ProxyForge/app.py` and 5 nav options), or create a **new** app and connect it to the correct repo.
+   - **Branch:** `main` (or the branch you push to).
+   - **Main file path:** Must be `ProxyForge/app.py`. If it is `app.py` (repo root) or `wargaming_erp/app.py`, Streamlit is running an old or different app — set it to `ProxyForge/app.py`.
+   - **Advanced → Root directory of your app:** Set to `ProxyForge` so the working directory is the app folder (imports and `requirements.txt` resolve correctly).
+3. **Save** and **Reboot app**. Wait for the build to finish; the sidebar should then show all 5 options (OPR Army Builder, 40K Army Builder, OPR Army Book Reference, 40K Army Book Reference, Digital Library).
 
 **If the cloud DB has no 40K data** (e.g. `SELECT COUNT(*) FROM view_master_picker WHERE game_system = '40K'` returns 0):
 
