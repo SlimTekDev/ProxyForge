@@ -17,7 +17,7 @@ def show_opr_gameday_view(active_list, roster_df, total_pts):
     with c1:
         st.write(f"**{active_list['faction_primary']}** | **{total_pts} / {active_list['point_limit']} pts**")
     with c2:
-        if st.button("⬅️ Back to Editor", use_container_width=True):
+        if st.button("⬅️ Back to Editor", width="stretch"):
             st.session_state.opr_gameday = False
             st.rerun()
 
@@ -178,7 +178,7 @@ def show_opr_details(unit_id, entry_id=None, faction=None, game_system="grimdark
         if default_stl and default_stl['preview_url']:
             st.image(
                 default_stl['preview_url'], 
-                use_container_width=True, 
+                width="stretch", 
                 caption=f"Visual Reference: {default_stl['name']}"
             )
         # -----------------------------------------------
@@ -311,7 +311,7 @@ def show_opr_details(unit_id, entry_id=None, faction=None, game_system="grimdark
                                 else: u_rules.append(item)
                             display_data.append({"Qty": "⭐", "Weapon": f"**{u_name}**", "Range": u_range, "A": u_atk, "AP": u_ap, "Special Rules": ", ".join(u_rules) if u_rules else "-"})
 
-                st.dataframe(pd.DataFrame(display_data), hide_index=True, use_container_width=True)
+                st.dataframe(pd.DataFrame(display_data), hide_index=True, width="stretch")
 
         # --- TAB 1: SPECIAL RULES ---
         with tabs[1]:
@@ -472,12 +472,12 @@ def run_opr_builder(active_list):
         
         # Small buttons side-by-side
         btn_col1, btn_col2 = st.sidebar.columns(2)
-        if btn_col1.button("➕ Add", key=f"add_lib_{u_id}_{active_id}", use_container_width=True):
+        if btn_col1.button("➕ Add", key=f"add_lib_{u_id}_{active_id}", width="stretch"):
             cursor.callproc('AddUnit', (active_id, str(u_id), 1))
             conn.commit()
             st.rerun()
             
-        if btn_col2.button("👁️ Info", key=f"det_lib_{u_id}_{active_id}", use_container_width=True):
+        if btn_col2.button("👁️ Info", key=f"det_lib_{u_id}_{active_id}", width="stretch"):
             show_opr_details(u_id, entry_id=None, faction=unit['faction'], game_system=active_list.get('game_system') or 'grimdark-future')
         
         st.sidebar.divider()
@@ -485,7 +485,7 @@ def run_opr_builder(active_list):
     # --- 5. ROSTER MAIN PANEL ---
     col_t, col_b = st.columns([0.7, 0.3])
     col_t.title(f"OPR Roster: {active_list['list_name']}")
-    if col_b.button("📑 Game-Day View", use_container_width=True):
+    if col_b.button("📑 Game-Day View", width="stretch"):
         st.session_state.opr_gameday = True; st.rerun()
 
     if not roster_df.empty:

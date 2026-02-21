@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 from database_utils import get_db_connection
+from text_utils import fix_apostrophe_mojibake
 from opr_builder import run_opr_builder
 from w40k_builder import run_40k_builder
 from library_ui import run_library_ui
@@ -80,7 +81,7 @@ try:
         cursor.execute("SELECT * FROM play_armylists WHERE game_system = %s", ("OPR",))
         opr_lists = cursor.fetchall()
         if opr_lists:
-            list_map = {f"{l['list_name']} ({l['point_limit']} pts)": l for l in opr_lists}
+            list_map = {f"{fix_apostrophe_mojibake(l['list_name'])} ({l['point_limit']} pts)": l for l in opr_lists}
             sel_label = st.sidebar.selectbox("Active Roster", list_map.keys(), key="opr_roster")
             active_list = list_map[sel_label]
             run_opr_builder(active_list)
@@ -106,7 +107,7 @@ try:
         cursor.execute("SELECT * FROM play_armylists WHERE game_system = %s", ("40K_10E",))
         w40k_lists = cursor.fetchall()
         if w40k_lists:
-            list_map = {f"{l['list_name']} ({l['point_limit']} pts)": l for l in w40k_lists}
+            list_map = {f"{fix_apostrophe_mojibake(l['list_name'])} ({l['point_limit']} pts)": l for l in w40k_lists}
             sel_label = st.sidebar.selectbox("Active Roster", list_map.keys(), key="40k_roster")
             active_list = list_map[sel_label]
             run_40k_builder(active_list)

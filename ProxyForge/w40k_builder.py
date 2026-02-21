@@ -3,6 +3,7 @@ import pandas as pd
 import re
 from database_utils import get_db_connection
 from library_ui import render_inline_link_unit, render_roster_stl_section
+from text_utils import fix_apostrophe_mojibake
 from w40k_roster import get_roster_40k, add_unit_40k, get_datasheet_id_for_entry, get_debug_query_results
 
 # --- 1. HELPER FUNCTIONS ---
@@ -80,7 +81,7 @@ def _strip_option_html(text):
     except Exception:
         pass
     lines = [" ".join(ln.split()) for ln in s.split("\n")]
-    return "\n".join(ln for ln in lines if ln)
+    return fix_apostrophe_mojibake("\n".join(ln for ln in lines if ln))
 
 
 def _show_led_by_can_lead_transport(cursor, unit_id):
@@ -881,7 +882,7 @@ def _show_40k_details_impl(unit_id, entry_id=None, detachment_id=None, faction=N
                     proxy_name = ''
                 elif str(proxy_name).startswith('0 ') and len(str(proxy_name)) > 2:
                     proxy_name = str(proxy_name)[2:].strip()
-                st.image(default_stl['preview_url'], use_container_width=True, caption=f"Proxy: {proxy_name}" if proxy_name else "Proxy")
+                st.image(default_stl['preview_url'], width="stretch", caption=f"Proxy: {proxy_name}" if proxy_name else "Proxy")
             else:
                 img_url = details.get('Image') or details.get('image')
                 if not img_url:
@@ -895,7 +896,7 @@ def _show_40k_details_impl(unit_id, entry_id=None, detachment_id=None, faction=N
                         if row and row.get('image_url'):
                             img_url = row['image_url']
                 if img_url:
-                    st.image(img_url, use_container_width=True, caption="Datasheet image")
+                    st.image(img_url, width="stretch", caption="Datasheet image")
                 else:
                     st.caption("No image for this unit.")
         # ------------------------------------------
@@ -972,7 +973,7 @@ def _show_40k_details_impl(unit_id, entry_id=None, detachment_id=None, faction=N
                 st.dataframe(
                     stats_df,
                     hide_index=True,
-                    use_container_width=True,
+                    width="stretch",
                     column_config={
                         "Model": st.column_config.TextColumn("Model", width="medium"),
                         "inv_sv": st.column_config.TextColumn("Inv Sv", help="Invulnerable Save")
@@ -1197,7 +1198,7 @@ def _show_40k_details_impl(unit_id, entry_id=None, detachment_id=None, faction=N
                             "AP": nw.get("ap_val", "—"), "D": nw.get("damage_val", "—"), "Special": "—",
                         })
                 if display_data:
-                    st.dataframe(pd.DataFrame(display_data), hide_index=True, use_container_width=True)
+                    st.dataframe(pd.DataFrame(display_data), hide_index=True, width="stretch")
                 st.markdown("**Final weapon count** (for dice rolls)")
                 summary_parts = [f"{c}× {w}" for w, c in sorted(final_counts.items(), key=lambda x: (-x[1], x[0])) if c and c != 0]
                 if summary_parts:
@@ -1657,7 +1658,7 @@ def _render_gameday_unit_content(conn, cursor, row, active_list, roster_df, sid,
         cursor.execute("SELECT name as Model, movement as M, toughness as T, save_value as Sv, wounds as W, leadership as Ld, oc as OC FROM waha_datasheets_models WHERE CAST(datasheet_id AS CHAR) = %s", (sid,))
         models = cursor.fetchall()
     if models:
-        st.dataframe(pd.DataFrame(models), hide_index=True, use_container_width=True)
+        st.dataframe(pd.DataFrame(models), hide_index=True, width="stretch")
     # B. Unit Composition (with base size per line)
     with st.expander("👥 Unit Composition", expanded=False):
         comp_list = _query_id("""
@@ -1692,7 +1693,7 @@ def _render_gameday_unit_content(conn, cursor, row, active_list, roster_df, sid,
                         **{k: w.get(k) or "—" for k in ("name", "range_val", "attacks", "bs_ws", "ap", "damage")},
                         "Special": special or "—",
                     })
-                st.dataframe(pd.DataFrame(rows), hide_index=True, use_container_width=True)
+                st.dataframe(pd.DataFrame(rows), hide_index=True, width="stretch")
             else:
                 st.caption("No weapons/wargear data for this unit.")
     with ra_col:
@@ -1849,7 +1850,7 @@ def _render_gameday_group_card(conn, cursor, leader_row, bodyguard_row, active_l
 
 def show_gameday_view(active_list, roster_df, total_pts):
     """A fully collapsible tactical sheet with a surgical stacked column layout."""
-    st.title(f"📄 Tactical Briefing: {active_list['list_name']}")
+    st.title(f"📄 Tactical Briefing: {fix_apostrophe_mojibake(active_list['list_name'])}")
     
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
@@ -1859,7 +1860,7 @@ def show_gameday_view(active_list, roster_df, total_pts):
     with c1:
         st.write(f"**{active_list['faction_primary']}** | **{total_pts} / {active_list['point_limit']} pts**")
     with c2:
-        if st.button("⬅️ Back to Editor", use_container_width=True):
+        if st.button("⬅️ Back to Editor", width="stretch"):
             st.session_state.gameday_mode = False
             st.rerun()
 
@@ -2333,7 +2334,7 @@ def run_40k_builder(active_list):
                 if sec["error"]:
                     st.error(sec["error"])
                 elif sec["rows"]:
-                    st.dataframe(sec["rows"], use_container_width=True, hide_index=True)
+                    st.dataframe(sec["rows"], width="stretch", hide_index=True)
                 else:
                     st.caption("(no rows)")
                 st.divider()
@@ -2349,10 +2350,10 @@ def run_40k_builder(active_list):
     with header_col:
         _ch_display = "Custom chapter" if saved_chapter == CHAPTER_CUSTOM else saved_chapter
         chapter_label = f" ({_ch_display})" if is_space_marine and saved_chapter else ""
-        st.title(f"🛡️ Roster: {active_list['list_name']}{chapter_label}")
+        st.title(f"🛡️ Roster: {fix_apostrophe_mojibake(active_list['list_name'])}{chapter_label}")
     with toggle_col:
         if not st.session_state.gameday_mode:
-            if st.button("📑 Game-Day View", use_container_width=True):
+            if st.button("📑 Game-Day View", width="stretch"):
                 st.session_state.gameday_mode = True
                 st.rerun()
             export_text = _build_40k_list_export_text(active_list, total_pts, cached_roster_df)
@@ -2362,7 +2363,7 @@ def run_40k_builder(active_list):
                 data=export_text,
                 file_name=f"{list_name_safe}.txt",
                 mime="text/plain",
-                use_container_width=True,
+                width="stretch",
                 key=f"export_40k_{list_id}",
             )
             export_xml = _build_40k_list_export_ros_xml(active_list, total_pts, cached_roster_df)
@@ -2371,7 +2372,7 @@ def run_40k_builder(active_list):
                 data=export_xml,
                 file_name=f"{list_name_safe}.ros",
                 mime="application/xml",
-                use_container_width=True,
+                width="stretch",
                 key=f"export_40k_ros_{list_id}",
             )
 

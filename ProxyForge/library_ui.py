@@ -84,7 +84,7 @@ def show_link_dialog(mmf_id, model_name):
     target_unit = st.selectbox("Select Target Unit", options=list(unit_map.keys()))
     is_primary = st.checkbox("Set as Default Image?", value=True)
     
-    if st.button("Confirm Link", use_container_width=True):
+    if st.button("Confirm Link", width="stretch"):
         unit_id = unit_map[target_unit]
         
         # --- EXCLUSIVITY ENFORCEMENT ---
@@ -140,7 +140,7 @@ def show_link_unit_dialog(unit_id, unit_name, game_system, army_label=""):
             r = rows[idx]
             with c:
                 if r.get("preview_url"):
-                    st.image(r["preview_url"], use_container_width=True)
+                    st.image(r["preview_url"], width="stretch")
                 else:
                     st.caption("(no preview)")
                 st.caption((r["name"] or r["mmf_id"])[:40] + ("…" if len((r["name"] or "") or r["mmf_id"]) > 40 else ""))
@@ -192,7 +192,7 @@ def render_inline_link_unit(unit_id, unit_name, game_system, army_label=""):
             r = rows[idx]
             with c:
                 if r.get("preview_url"):
-                    st.image(r["preview_url"], use_container_width=True)
+                    st.image(r["preview_url"], width="stretch")
                 else:
                     st.caption("(no preview)")
                 st.caption((r["name"] or r["mmf_id"])[:40] + ("…" if len((r["name"] or "") or r["mmf_id"]) > 40 else ""))
@@ -246,7 +246,7 @@ def show_roster_stl_picker_dialog(entry_id, unit_id, unit_name, game_system, arm
                 c1, c2 = st.columns([1, 2])
                 with c1:
                     if r.get("preview_url"):
-                        st.image(r["preview_url"], use_container_width=True)
+                        st.image(r["preview_url"], width="stretch")
                     else:
                         st.caption("(no preview)")
                 with c2:
@@ -275,7 +275,7 @@ def show_roster_stl_picker_dialog(entry_id, unit_id, unit_name, game_system, arm
             r = rows[idx]
             with c:
                 if r.get("preview_url"):
-                    st.image(r["preview_url"], use_container_width=True)
+                    st.image(r["preview_url"], width="stretch")
                 else:
                     st.caption("(no preview)")
                 st.caption((r["name"] or r["mmf_id"])[:40] + ("…" if len((r["name"] or "") or r["mmf_id"]) > 40 else ""))
@@ -320,7 +320,7 @@ def render_roster_stl_section(entry_id, unit_id, unit_name, game_system, army_la
             c1, c2 = st.columns([1, 3])
             with c1:
                 if ch.get("preview_url"):
-                    st.image(ch["preview_url"], use_container_width=True)
+                    st.image(ch["preview_url"], width="stretch")
                 else:
                     st.caption("(no preview)")
             with c2:
@@ -366,7 +366,7 @@ def _render_inline_roster_stl_picker(conn, entry_id, unit_id, game_system):
             c1, c2 = st.columns([1, 2])
             with c1:
                 if r.get("preview_url"):
-                    st.image(r["preview_url"], use_container_width=True)
+                    st.image(r["preview_url"], width="stretch")
                 else:
                     st.caption("(no preview)")
             with c2:
@@ -394,7 +394,7 @@ def _render_inline_roster_stl_picker(conn, entry_id, unit_id, game_system):
             r = rows[idx]
             with c:
                 if r.get("preview_url"):
-                    st.image(r["preview_url"], use_container_width=True)
+                    st.image(r["preview_url"], width="stretch")
                 else:
                     st.caption("(no preview)")
                 lab = _stl_display_name(r.get("name") or r.get("mmf_id"), fallback=r.get("mmf_id") or "")
@@ -566,7 +566,7 @@ def run_library_ui():
                             img = images[cur_idx]
                             img_url = img.get("url") or img.get("thumbnailUrl") or ""
                             if img_url:
-                                st.image(img_url, use_container_width=True)
+                                st.image(img_url, width="stretch")
                             prev_k = f"stl_prev_{mmf_id}_{current_page}_{idx}"
                             next_k = f"stl_next_{mmf_id}_{current_page}_{idx}"
                             c1, c2, c3 = st.columns([1, 2, 1])
@@ -584,14 +584,14 @@ def run_library_ui():
                             st.caption("🖼️ Gallery")
                             img_url = images[0].get("url") or images[0].get("thumbnailUrl") or ""
                             if img_url:
-                                st.image(img_url, use_container_width=True)
+                                st.image(img_url, width="stretch")
                             else:
                                 st.caption("(no preview)")
                         else:
                             # No images_json or empty: show single preview so gallery area is visible
                             if stl.get('preview_url'):
                                 st.caption("🖼️ Preview")
-                                st.image(stl['preview_url'], use_container_width=True)
+                                st.image(stl['preview_url'], width="stretch")
                             else:
                                 st.caption("🖼️ (no preview)")
                         st.markdown(f"**{stl['name']}**")
@@ -644,10 +644,10 @@ def run_library_ui():
                             clean_url = f"https://www.myminifactory.com/object/3d-print-{clean_slug}"
 
                         c_a, c_b, c_c = st.columns(3)
-                        if c_a.button("🔗 Link", key=f"lk_{stl['mmf_id']}_{current_page}_{idx}", use_container_width=True):
+                        if c_a.button("🔗 Link", key=f"lk_{stl['mmf_id']}_{current_page}_{idx}", width="stretch"):
                             show_link_dialog(stl['mmf_id'], stl['name'])
-                        c_b.link_button("🌐 MMF", clean_url, use_container_width=True)
-                        c_c.link_button("⬇ Download", clean_url, use_container_width=True)
+                        c_b.link_button("🌐 MMF", clean_url, width="stretch")
+                        c_c.link_button("⬇ Download", clean_url, width="stretch")
 
                         if desc_full:
                             with st.expander("📄 Full description", expanded=False):
@@ -952,7 +952,7 @@ def render_audit_editor(links, key_prefix, conn):
             df,
             column_config=column_config,
             disabled=["model_name", "unit_name", "army", "game_system"],
-            hide_index=True, use_container_width=True, key=f"editor_{key_prefix}"
+            hide_index=True, width="stretch", key=f"editor_{key_prefix}"
         )
 
         col_save, col_unlink = st.columns(2)
