@@ -235,7 +235,7 @@ def run_army_book_ui():
             army_image_url = url
             break
     if army_image_url:
-        st.image(army_image_url, width="content", width=200, caption=f"{army_name} — Army Book")
+        st.image(army_image_url, width=200, caption=f"{army_name} — Army Book")
 
     # Army detail (background, rules, spells) from opr_army_detail
     render_army_detail(army_name, sys_slug)
