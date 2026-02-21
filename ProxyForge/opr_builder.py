@@ -490,6 +490,16 @@ def run_opr_builder(active_list):
 
     if not roster_df.empty:
         st.metric("Total Points", f"{total_pts} / {active_list['point_limit']}")
+        # Re-open unit details after STL add/remove (library_ui sets reopen_unit_details before st.rerun())
+        opr_sys = active_list.get("game_system") or "grimdark-future"
+        reopen = st.session_state.pop("reopen_unit_details", None)
+        if isinstance(reopen, dict) and reopen.get("game_system") == opr_sys:
+            eid = reopen.get("entry_id")
+            if eid is not None:
+                match = roster_df[roster_df["entry_id"] == eid]
+                if not match.empty:
+                    r = match.iloc[0]
+                    show_opr_details(r["unit_id"], r["entry_id"], faction=active_list["faction_primary"], game_system=opr_sys)
         for i, row in roster_df.iterrows():
             with st.container(border=True):
                 r1, r2, r3 = st.columns([0.8, 0.1, 0.1])

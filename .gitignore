@@ -14,10 +14,26 @@ env/
 .env.local
 .env.*.local
 *.env.local
+.env.cloud
+
+# Migration validation baseline (local artifact; may contain DB host/name)
+migration_baseline.json
 
 # Sensitive / large data
 data/mmf/mmf_download.json
 data/mmf/last_sync.json
+
+# DB dumps (large; restore locally or via scripts, do not commit)
+*_dump.sql
+
+# Bulk data (excluded for Streamlit Cloud; hydrate DB from local instead)
+data/wahapedia/
+data/opr/*.json
+data/opr/army_details.json
+data/opr/army_forge_armies.json
+data/opr/data_fetched.json
+!data/opr/.gitkeep
+!data/wahapedia/.gitkeep
 
 # IDE / editor
 .idea/

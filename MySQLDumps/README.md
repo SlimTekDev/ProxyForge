@@ -22,7 +22,7 @@ This section documents where the data in **wargaming_erp** comes from and how it
 
 | Source | Feeds | Current method | Notes / roadmap |
 |--------|--------|----------------|------------------|
-| **40K / Wahapedia** | `waha_*` tables (datasheets, detachments, enhancements, weapons, abilities, stratagems, etc.) | Manual or separate sync/export scripts; structure follows Wahapedia. | *Planned:* direct pull from source site(s) where feasible. |
+| **40K / Wahapedia** | `waha_*` tables (factions, detachments, datasheets, models, keywords, abilities, wargear, options, leader, stratagems, enhancements, etc.) | **scripts/wahapedia/hydrate_waha_full.py** loads all CSVs from `data/wahapedia/` in dependency order. **hydrate_waha_datasheets_extra.py** fills legend, role, loadout, transport, damaged_* on `waha_datasheets` from `Datasheets.csv`. Place pipe-delimited CSVs in `data/wahapedia/` (export or copy from your source). | See **docs/Wahapedia-40K-Fetcher-Hydrator-Plan.md**. *Planned:* automated fetcher / sync check. |
 | **OPR (One Page Rules)** | `opr_units`, `opr_unit_upgrades`, `opr_specialrules`, `opr_spells`, `opr_unitweapons`, `opr_unitrules`, `opr_army_settings` | **OPR_JSON_analyzer.py** (and hydration scripts) in or alongside **Wargaming_ERP**; reads OPR community JSON. | See Wargaming_ERP README for analyzer usage. *Planned:* direct fetch from OPR/community JSON URLs if available. |
 | **MyMiniFactory (MMF)** | `stl_library` (Digital Library catalog) | **fetch_mmf_library.py** (scripts/mmf) fetches via MMF API v2; writes **data/mmf/mmf_download.json**. **mmf_hydrator.py** reads that file and upserts `stl_library`; skips when content hash unchanged. | See **docs/MMF-Fetcher-Setup.md**. Set `MMF_USERNAME` and optionally `MMF_API_KEY`. |
 

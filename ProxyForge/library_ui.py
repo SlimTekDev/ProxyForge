@@ -25,6 +25,15 @@ def _get_images_json_from_row(row):
             return value
     return row.get("images_json")
 
+
+def _stl_display_name(name_or_id, fallback=""):
+    """Strip stray leading '0' / '0 ' from STL names for display."""
+    if name_or_id is None: return fallback
+    s = str(name_or_id).strip()
+    if s == "0": return fallback
+    if s.startswith("0 ") and len(s) > 2: return s[2:].strip()
+    return s if s else fallback
+
 # --- 1. Linking Dialog ---
 @st.dialog("🔗 Link STL to Game Unit")
 def show_link_dialog(mmf_id, model_name):
@@ -137,15 +146,13 @@ def show_link_unit_dialog(unit_id, unit_name, game_system, army_label=""):
                 st.caption((r["name"] or r["mmf_id"])[:40] + ("…" if len((r["name"] or "") or r["mmf_id"]) > 40 else ""))
                 if st.button("Link", key=f"link_btn_{r['mmf_id']}_{unit_id}"):
                     try:
-                        if is_default:
-                            cursor.execute("UPDATE stl_unit_links SET is_default = 0 WHERE unit_id = %s AND game_system = %s", (unit_id, game_system))
                         cursor.execute(
-                            "INSERT IGNORE INTO stl_unit_links (mmf_id, unit_id, game_system, is_default) VALUES (%s, %s, %s, %s)",
+                            "INSERT INTO stl_unit_links (mmf_id, unit_id, game_system, is_default) VALUES (%s, %s, %s, %s)"
+                            " ON DUPLICATE KEY UPDATE is_default = VALUES(is_default)",
                             (r["mmf_id"], unit_id, game_system, 1 if is_default else 0),
                         )
                         conn.commit()
-                        st.success(f"Linked to {r['name'][:30]}.")
-                        conn.close()
+                        st.success(f"Linked to {(r.get('name') or r.get('mmf_id') or '')[:30]}.")
                         st.rerun()
                     except Exception as e:
                         st.error(str(e))
@@ -191,15 +198,13 @@ def render_inline_link_unit(unit_id, unit_name, game_system, army_label=""):
                 st.caption((r["name"] or r["mmf_id"])[:40] + ("…" if len((r["name"] or "") or r["mmf_id"]) > 40 else ""))
                 if st.button("Link", key=f"inline_link_btn_{r['mmf_id']}_{unit_id}"):
                     try:
-                        if is_default:
-                            cursor.execute("UPDATE stl_unit_links SET is_default = 0 WHERE unit_id = %s AND game_system = %s", (unit_id, game_system))
                         cursor.execute(
-                            "INSERT IGNORE INTO stl_unit_links (mmf_id, unit_id, game_system, is_default) VALUES (%s, %s, %s, %s)",
+                            "INSERT INTO stl_unit_links (mmf_id, unit_id, game_system, is_default) VALUES (%s, %s, %s, %s)"
+                            " ON DUPLICATE KEY UPDATE is_default = VALUES(is_default)",
                             (r["mmf_id"], unit_id, game_system, 1 if is_default else 0),
                         )
                         conn.commit()
-                        st.success(f"Linked to {(r['name'] or '')[:30]}.")
-                        conn.close()
+                        st.success(f"Linked to {(r.get('name') or r.get('mmf_id') or '')[:30]}.")
                         st.rerun()
                     except Exception as e:
                         st.error(str(e))
@@ -253,8 +258,8 @@ def show_roster_stl_picker_dialog(entry_id, unit_id, unit_name, game_system, arm
                             next_order = (list(next_ord.values())[0] or 0) if next_ord else 0
                             cursor.execute("INSERT IGNORE INTO play_armylist_stl_choices (entry_id, mmf_id, sort_order) VALUES (%s, %s, %s)", (entry_id, r["mmf_id"], next_order))
                             conn.commit()
+                            st.session_state["reopen_unit_details"] = {"entry_id": entry_id, "game_system": game_system}
                             st.success("Added.")
-                            conn.close()
                             st.rerun()
                         except Exception as e:
                             st.error(str(e))
@@ -281,8 +286,8 @@ def show_roster_stl_picker_dialog(entry_id, unit_id, unit_name, game_system, arm
                         next_order = (list(next_ord.values())[0] or 0) if next_ord else 0
                         cursor.execute("INSERT IGNORE INTO play_armylist_stl_choices (entry_id, mmf_id, sort_order) VALUES (%s, %s, %s)", (entry_id, r["mmf_id"], next_order))
                         conn.commit()
+                        st.session_state["reopen_unit_details"] = {"entry_id": entry_id, "game_system": game_system}
                         st.success("Added.")
-                        conn.close()
                         st.rerun()
                     except Exception as e:
                         st.error(str(e))
@@ -319,11 +324,12 @@ def render_roster_stl_section(entry_id, unit_id, unit_name, game_system, army_la
                 else:
                     st.caption("(no preview)")
             with c2:
-                st.caption(ch["name"] or ch["mmf_id"])
+                disp = _stl_display_name(ch.get("name") or ch.get("mmf_id"), fallback=ch.get("mmf_id") or "(unnamed)")
+                st.caption(disp)
                 if st.button("Remove", key=f"roster_rm_{entry_id}_{ch['id']}"):
                     cursor.execute("DELETE FROM play_armylist_stl_choices WHERE id = %s", (ch["id"],))
                     conn.commit()
-                    conn.close()
+                    st.session_state["reopen_unit_details"] = {"entry_id": entry_id, "game_system": game_system}
                     st.rerun()
         st.divider()
     # Inline picker (no nested dialog — we may be inside unit details dialog)
@@ -364,7 +370,7 @@ def _render_inline_roster_stl_picker(conn, entry_id, unit_id, game_system):
                 else:
                     st.caption("(no preview)")
             with c2:
-                st.caption(r["name"] or r["mmf_id"])
+                st.caption(_stl_display_name(r.get("name") or r.get("mmf_id"), fallback=r.get("mmf_id")))
                 if st.button("Add to roster", key=f"roster_add_{entry_id}_{r['mmf_id']}"):
                     try:
                         cursor.execute("SELECT COALESCE(MAX(sort_order), 0) + 1 FROM play_armylist_stl_choices WHERE entry_id = %s", (entry_id,))
@@ -372,6 +378,7 @@ def _render_inline_roster_stl_picker(conn, entry_id, unit_id, game_system):
                         next_order = (list(next_ord.values())[0] or 0) if next_ord else 0
                         cursor.execute("INSERT IGNORE INTO play_armylist_stl_choices (entry_id, mmf_id, sort_order) VALUES (%s, %s, %s)", (entry_id, r["mmf_id"], next_order))
                         conn.commit()
+                        st.session_state["reopen_unit_details"] = {"entry_id": entry_id, "game_system": game_system}
                         st.rerun()
                     except Exception as e:
                         st.error(str(e))
@@ -390,7 +397,8 @@ def _render_inline_roster_stl_picker(conn, entry_id, unit_id, game_system):
                     st.image(r["preview_url"], use_container_width=True)
                 else:
                     st.caption("(no preview)")
-                st.caption((r["name"] or r["mmf_id"])[:40] + ("…" if len((r["name"] or "") or r["mmf_id"]) > 40 else ""))
+                lab = _stl_display_name(r.get("name") or r.get("mmf_id"), fallback=r.get("mmf_id") or "")
+                st.caption((lab[:40] + ("…" if len(lab) > 40 else "")))
                 if st.button("Add", key=f"roster_add_all_{entry_id}_{r['mmf_id']}_{idx}"):
                     try:
                         cursor.execute("SELECT COALESCE(MAX(sort_order), 0) + 1 FROM play_armylist_stl_choices WHERE entry_id = %s", (entry_id,))
@@ -398,6 +406,7 @@ def _render_inline_roster_stl_picker(conn, entry_id, unit_id, game_system):
                         next_order = (list(next_ord.values())[0] or 0) if next_ord else 0
                         cursor.execute("INSERT IGNORE INTO play_armylist_stl_choices (entry_id, mmf_id, sort_order) VALUES (%s, %s, %s)", (entry_id, r["mmf_id"], next_order))
                         conn.commit()
+                        st.session_state["reopen_unit_details"] = {"entry_id": entry_id, "game_system": game_system}
                         st.rerun()
                     except Exception as e:
                         st.error(str(e))

@@ -24,8 +24,7 @@ A living list of features and options for the project, with brief feasibility no
 - **Current:** OPR data is loaded from community JSON (e.g. `data/opr/data.json`) via `OPR_JSON_analyzer.py` / `newest_hydrator.py`. Source is often Army Forge or community repos.
 - **Options:** (1) Fetch latest JSON from a known URL (e.g. OPR or community GitHub) on a schedule or on demand. (2) Use Army Forge if they expose a public data URL. (3) Manual “download → replace file → run hydrator” until an auto-fetcher exists.
 - **Sync design:** See `docs/Scrapers-and-Sync-Design.md`. Use content hash or `Last-Modified`/ETag to only re-hydrate when data actually changed.
-
-*Note: “Kano” may have been a typo or autocorrect; if it refers to a specific source (e.g. a person or tool), add that source here.*
+- **Alternative path:** **New Recruit investigated (2025-02-17):** their public API does **not** expose catalog data—only list exports. See **docs/New-Recruit-API-Investigation.md**. For OPR catalog, use **Army Forge or GitHub:** see **docs/Army-Forge-Fetcher-Hydrator-Investigation.md** — discover Army Forge data URL and/or build fetcher from OPR GitHub .cat files; add sync check (hash) then run existing hydrators.
 
 ---
 
@@ -132,11 +131,11 @@ A living list of features and options for the project, with brief feasibility no
 
 ## 13. New Recruit game data + extra game systems (D&D, Frostgrave, etc.)
 
-**Feasibility: Worth checking**
+**Feasibility: List import yes; catalog data no (investigation done)**
 
-- **Vision:** (1) **Download game data from New Recruit** and use it for army builder info, **cross compatibility** (e.g. import/export lists), and as a **source to feed hydrators**. (2) Use that (and similar sources) to **add support for extra game systems** so the **MMF file association scheme** can cover more than 40K/OPR: e.g. **D&D / Pathfinder**, **Frostgrave / Stargrave / Rangers of Shadow Deep**, and other smaller wargames / tabletop games for “populating forces” (unit ↔ STL links, roster building).
-- **New Recruit:** Check if they expose **game data** (datasheets, points, rules) in bulk—not just roster exports—so it can feed hydrators. If yes, design a hydrator and extend `view_master_picker` (or equivalent) and unit tables per game system. If they only expose roster exports, that still helps “import list from New Recruit” and cross compatibility.
-- **Extra systems:** Schema and UI already support multiple `game_system` values (e.g. 40K_10E, grimdark-future). Adding D&D/Pathfinder, Frostgrave/Stargrave/Rangers, etc. means: new or shared unit/force tables, game-specific hydrators, and MMF links keyed by game_system + unit (or “force slot”). New Recruit (or other data packs) could be the feed for those systems.
+- **Investigation (2025-02-17):** See **docs/New-Recruit-API-Investigation.md**. New Recruit’s public API exposes **only**: `/api/systems` (game system names/IDs), `/api/tournaments`, `/api/tournament` (teams, players, lists), `/api/reports` (player reports + **exported_list**). **No endpoint returns bulk game catalog** (units, points, rules). NR uses BattleScribe data (BSData) for builds; they do not expose that catalog via API.
+- **Use for ProxyForge:** (1) **Catalog/hydrators:** Not a source. Keep OPR from community JSON / Army Forge; 40K from Wahapedia (or other). (2) **List import:** Yes. Reports and Tournament APIs return exported lists; implement “import list from New Recruit” by parsing `exported_list` (and/or tournament `players[].lists`) once format is confirmed; may be BattleScribe .ros/.rosz or NR-specific—needs a live response sample. Auth: all endpoints use `NR-Login` / `NR-Password`; contact NR for access.
+- **Extra systems:** `/api/systems` gives system IDs for filtering only. Adding D&D, Frostgrave, etc. still requires our own data source and hydrator per system; NR can be a list source for those systems if they support them and expose lists in a parseable format.
 
 ---
 
@@ -175,7 +174,7 @@ A living list of features and options for the project, with brief feasibility no
 | 10 | Security features/settings | High | **2.0** |
 | 11 | GW website scraper (retail data) | Medium–Low | **Sooner** — third-party or manual RRP; avoid ToS risk |
 | 12 | One-button download: roster → proxies → files | Medium | Roster → select MMF proxies → one click download; depends on #6 |
-| 13 | New Recruit game data + extra game systems | Worth checking | Game data for hydrators; D&D/Pathfinder, Frostgrave/Stargrave/Rangers, etc.; MMF association |
+| 13 | New Recruit game data + extra game systems | List import yes; catalog no | See New-Recruit-API-Investigation.md; NR API = list export only; use for “import from NR” |
 | 14 | Update process (hash checks, update on login) | High | Fetchers + hydrators; hash checks; update on login or schedule |
 | 15 | Slicer integration | Open | **Later** — more research |
 

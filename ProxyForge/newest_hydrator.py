@@ -26,7 +26,7 @@ def dual_system_sync():
         with open(JSON_PATH, 'r', encoding='utf-8') as f:
             data = json.load(f)
     except FileNotFoundError:
-        print(f"❌ JSON not found at {JSON_PATH}")
+        print(f"JSON not found at {JSON_PATH}")
         return
 
     try:
@@ -52,7 +52,7 @@ def dual_system_sync():
                 image_url = VALUES(image_url)
         """
 
-        print(f"🚀 Syncing {len(data)} units...")
+        print(f"Syncing {len(data)} units...")
         
         count = 0
         for entry in data:
@@ -77,10 +77,10 @@ def dual_system_sync():
             count += 1
 
         conn.commit()
-        print(f"🏁 DONE! Database now contains {count} entries.")
+        print(f"DONE! Database now contains {count} entries.")
 
     except mysql.connector.Error as err:
-        print(f"❌ Connection Failed: {err}")
+        print(f"Connection Failed: {err}")
     finally:
         if 'conn' in locals() and conn.is_connected():
             cursor.close()

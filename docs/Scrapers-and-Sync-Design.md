@@ -25,15 +25,15 @@
 
 ## 2. Per-source snapshot
 
-### OPR (One Page Rules)
+### OPR (One Page Rules) / Army Forge
 
-- **Current:** You use community JSON (e.g. `data.json`) and OPR_JSON_analyzer / newest_hydrator.
-- **Scraping vs API:** OPR often publishes data as JSON (e.g. from their app or community repos). Prefer **fetching a known JSON URL** over scraping HTML.
+- **Current:** You use community JSON (e.g. `data.json`) and OPR_JSON_analyzer / newest_hydrator. See **docs/Army-Forge-Fetcher-Hydrator-Investigation.md** for fetcher options and Army Forge vs GitHub .cat.
+- **Data sources:** Army Forge (no documented API; discover catalog URL via DevTools) or OPR GitHub (.cat/.gst BattleScribe XML; convert to our JSON). Prefer a known JSON URL if Army Forge exposes one.
 - **Sync check options:**
   - If the JSON URL returns **Last-Modified** or **ETag**, use that: store `last_etag` or `last_modified` per source; only download and re-hydrate when the header changes.
   - If the URL is static (same file always), use a **content hash** (e.g. SHA-256 of the response body): store `last_hash`; if new fetch has a different hash, run the hydrator.
   - If the community publishes a **version file** or **changelog**, use that as the “version” and only pull full JSON when the version changes.
-- **Output:** Scraper writes to `data/opr/data.json` (and optionally `data/opr/manifest.json` with `{ "fetched_at": "ISO8601", "hash": "sha256..." }`). Orchestrator compares manifest to previous run; if changed, runs OPR hydrator.
+- **Output:** Fetcher writes to `data/opr/data.json` (and optionally `manifest.json`). Orchestrator compares to `last_sync.json` (hash); if changed, runs OPR_JSON_analyzer then newest_hydrator.
 
 ### MyMiniFactory (MMF)
 
