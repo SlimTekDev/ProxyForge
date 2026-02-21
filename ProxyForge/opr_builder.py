@@ -409,9 +409,28 @@ def run_opr_builder(active_list):
         total_pts = int(pd.to_numeric(roster_df['Total_Pts'], errors='coerce').sum())
 
     # --- 2. SYSTEM IDENTIFICATION & TOGGLE ---
-    cursor.execute("SELECT setting_name FROM opr_army_settings WHERE army_name = %s LIMIT 1", (active_list['faction_primary'],))
+    # Armies that are Age of Fantasy (not GF); used to infer mode when opr_army_settings has no row
+    _AOF_FACTION_NAMES = frozenset({
+        "Beastmen", "Chivalrous Kingdoms", "Dark Elves", "Deep-Sea Elves", "Duchies of Vinci",
+        "Dwarves", "Eternal Wardens", "Ghostly Undead", "Giant Tribes", "Goblins", "Halflings",
+        "Havoc Dwarves", "Havoc War Clans", "Havoc Warriors", "High Elves", "Human Empire",
+        "Kingdom of Angels", "Mummified Undead", "Ogres", "Orcs", "Ossified Undead", "Ratmen",
+        "Rift Daemons", "Saurians", "Shadow Stalkers", "Sky-City Dwarves",
+        "Vampiric Undead", "Volcanic Dwarves", "Wood Elves",
+    })
+    primary_fac_for_settings = (active_list.get("faction_primary") or "").strip()
+    cursor.execute("SELECT setting_name FROM opr_army_settings WHERE army_name = %s LIMIT 1", (primary_fac_for_settings,))
     system_res = cursor.fetchone()
-    current_system = system_res['setting_name'] if system_res else 'grimdark-future'
+    if system_res:
+        current_system = system_res["setting_name"]
+    else:
+        # No row: infer from faction name so AoF lists show AoF library even before user opens settings
+        current_system = "age-of-fantasy" if primary_fac_for_settings in _AOF_FACTION_NAMES else "grimdark-future"
+        cursor.execute(
+            "INSERT INTO opr_army_settings (army_name, setting_name) VALUES (%s, %s) ON DUPLICATE KEY UPDATE setting_name = VALUES(setting_name)",
+            (primary_fac_for_settings, current_system),
+        )
+        conn.commit()
 
     mode_display = {
         "grimdark-future": "Grimdark Future",
@@ -437,29 +456,83 @@ def run_opr_builder(active_list):
         conn.close(); return 
 
     # --- 4. LIBRARY SIDEBAR (Surgical & Visible) ---
+    # Same logic for GDF and AoF: filter by faction + game_system (view_opr_master_picker.faction = opr_units.army, .game_system = opr_units.game_system)
     st.sidebar.header(f"OPR Library ({current_system})")
-    
-    primary_fac = active_list['faction_primary'].strip()
+    primary_fac = active_list["faction_primary"].strip()
     search = st.sidebar.text_input("Search (e.g. 'Brother')", key=f"search_opr_{active_id}")
-    
-    # 1. Fetch Units (Simplified Query)
+    fallback_msg = None
+    aof_systems = ("age-of-fantasy", "age-of-fantasy-skirmish", "age-of-fantasy-regiments")
+
+    # 1. Main query: same for GDF and AoF — faction = primary_fac AND game_system = current_system
     lib_query = """
-        SELECT * FROM view_opr_master_picker 
-        WHERE (faction = %s OR faction = 'Prime Brothers' OR faction = 'Battle Brothers')
-        AND game_system = %s
+        SELECT * FROM view_opr_master_picker
+        WHERE faction = %s AND game_system = %s
     """
     params = [primary_fac, current_system]
     if search:
         lib_query += " AND name LIKE %s"
         params.append(f"%{search}%")
-    
     lib_query += " ORDER BY name ASC LIMIT 40"
     cursor.execute(lib_query, tuple(params))
     lib_results = cursor.fetchall()
 
     if not lib_results:
-        st.sidebar.warning("No units found. Try a broader search.")
-    
+        # Fallback 1: same faction, any game_system (DB might have this army under another system)
+        fallback_query = """
+            SELECT * FROM view_opr_master_picker
+            WHERE faction = %s
+        """
+        fallback_params = [primary_fac]
+        if search:
+            fallback_query += " AND name LIKE %s"
+            fallback_params.append(f"%{search}%")
+        fallback_query += " ORDER BY name ASC LIMIT 40"
+        cursor.execute(fallback_query, tuple(fallback_params))
+        lib_results = cursor.fetchall()
+        if lib_results:
+            fallback_msg = f"No units for **{primary_fac}** with mode **{mode_display.get(current_system, current_system)}** in DB; showing all **{primary_fac}** units (any mode). Re-run the hydrator to fix `game_system` tags."
+
+    if not lib_results and current_system in aof_systems:
+        # Fallback 2 (AoF only): show any units for this game system so user sees AoF data if it exists
+        fallback2_query = """
+            SELECT * FROM view_opr_master_picker
+            WHERE game_system = %s
+        """
+        fallback2_params = [current_system]
+        if search:
+            fallback2_query += " AND name LIKE %s"
+            fallback2_params.append(f"%{search}%")
+        fallback2_query += " ORDER BY name ASC LIMIT 40"
+        cursor.execute(fallback2_query, tuple(fallback2_params))
+        lib_results = cursor.fetchall()
+        if lib_results:
+            fallback_msg = f"No **{primary_fac}** units in database for this mode; showing sample **{mode_display.get(current_system, current_system)}** units from other armies."
+
+    if not lib_results:
+        st.sidebar.warning("No units found. Try a broader search or check that OPR data for this army (and game mode) is loaded.")
+        with st.sidebar.expander("Why no units? (debug)", expanded=True):
+            st.markdown(f"**Query:** `faction` = \"{primary_fac}\", `game_system` = \"{current_system}\".")
+            try:
+                cursor.execute("SELECT COUNT(*) AS n FROM opr_units WHERE game_system = %s", (current_system,))
+                row = cursor.fetchone()
+                sys_count = int(row["n"]) if row and "n" in row else (int(row[0]) if row and len(row) else 0)
+                st.markdown(f"This DB has **{sys_count}** units with `game_system` = \"{current_system}\".")
+                if sys_count > 0:
+                    cursor.execute(
+                        "SELECT DISTINCT army FROM opr_units WHERE game_system = %s ORDER BY army LIMIT 15",
+                        (current_system,),
+                    )
+                    rows = cursor.fetchall()
+                    sample_armies = [str(r.get("army", "")) for r in rows if r and r.get("army")]
+                    st.markdown(f"Sample armies in DB: {', '.join(sample_armies)}.")
+                if current_system in aof_systems and sys_count == 0:
+                    st.markdown("Run `python scripts/opr/newest_hydrator.py` from repo root (same .env as app) to sync OPR data.")
+            except Exception as e:
+                st.markdown(f"**Diagnostic error:** {e}")
+
+    if fallback_msg:
+        st.sidebar.info(fallback_msg)
+
     # 2. Rendering Loop (Simplified for Sidebar stability)
     for unit in lib_results:
         u_id = unit['id']

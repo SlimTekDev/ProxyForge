@@ -4,6 +4,7 @@ import os
 try:
     from dotenv import load_dotenv
     _repo_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    # Local instance: load .env only (repo root). For cloud, set env or use a separate deploy.
     load_dotenv(os.path.join(_repo_root, ".env"))
 except ImportError:
     pass

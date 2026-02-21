@@ -16,6 +16,36 @@ except ImportError:
 
 st.set_page_config(layout="wide", page_title="ProxyForge")
 
+# OPR armies by game system (official OPR names). Merged with DB factions so dropdown is populated even without DB data.
+OPR_ARMIES_BY_SYSTEM = {
+    "grimdark-future": [],
+    "grimdark-future-firefight": [],
+    "age-of-fantasy": [
+        "Beastmen", "Chivalrous Kingdoms", "Dark Elves", "Deep-Sea Elves", "Duchies of Vinci",
+        "Dwarves", "Eternal Wardens", "Ghostly Undead", "Giant Tribes", "Goblins", "Halflings",
+        "Havoc Dwarves", "Havoc War Clans", "Havoc Warriors", "High Elves", "Human Empire",
+        "Kingdom of Angels", "Mummified Undead", "Ogres", "Orcs", "Ossified Undead", "Ratmen",
+        "Rift Daemons", "Saurians", "Shadow Stalkers", "Sky-City Dwarves", "Vampiric Undead",
+        "Volcanic Dwarves", "Wood Elves",
+    ],
+    "age-of-fantasy-skirmish": [
+        "Beastmen", "Chivalrous Kingdoms", "Dark Elves", "Deep-Sea Elves", "Duchies of Vinci",
+        "Dwarves", "Eternal Wardens", "Ghostly Undead", "Giant Tribes", "Goblins", "Halflings",
+        "Havoc Dwarves", "Havoc War Clans", "Havoc Warriors", "High Elves", "Human Empire",
+        "Kingdom of Angels", "Mummified Undead", "Ogres", "Orcs", "Ossified Undead", "Ratmen",
+        "Rift Daemons", "Saurians", "Shadow Stalkers", "Sky-City Dwarves", "Vampiric Undead",
+        "Volcanic Dwarves", "Wood Elves",
+    ],
+    "age-of-fantasy-regiments": [
+        "Beastmen", "Chivalrous Kingdoms", "Dark Elves", "Deep-Sea Elves", "Duchies of Vinci",
+        "Dwarves", "Eternal Wardens", "Ghostly Undead", "Giant Tribes", "Goblins", "Halflings",
+        "Havoc Dwarves", "Havoc War Clans", "Havoc Warriors", "High Elves", "Human Empire",
+        "Kingdom of Angels", "Mummified Undead", "Ogres", "Orcs", "Ossified Undead", "Ratmen",
+        "Rift Daemons", "Saurians", "Shadow Stalkers", "Sky-City Dwarves", "Vampiric Undead",
+        "Volcanic Dwarves", "Wood Elves",
+    ],
+}
+
 try:
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
@@ -60,8 +90,14 @@ try:
                 "Age of Fantasy Regiments": "age-of-fantasy-regiments"
             }
             opr_mode_slug = mode_map[opr_mode]
-            cursor.execute("SELECT DISTINCT faction FROM view_master_picker WHERE `game_system` = %s", ("OPR",))
-            fac_options = sorted([f['faction'] for f in cursor.fetchall()])
+            # Game-system aware: view_opr_master_picker has per-system game_system (grimdark-future, age-of-fantasy, etc.)
+            cursor.execute(
+                "SELECT DISTINCT faction FROM view_opr_master_picker WHERE game_system = %s",
+                (opr_mode_slug,),
+            )
+            db_factions = [f["faction"] for f in cursor.fetchall()]
+            static_armies = OPR_ARMIES_BY_SYSTEM.get(opr_mode_slug, [])
+            fac_options = sorted(set(db_factions) | set(static_armies))
             p_fac = st.selectbox("Primary Army", fac_options, key="opr_fac")
             new_pts = st.number_input("Points", value=2000, step=250, key="opr_pts")
             if st.button("Save List", key="opr_save"):
@@ -84,6 +120,23 @@ try:
             list_map = {f"{fix_apostrophe_mojibake(l['list_name'])} ({l['point_limit']} pts)": l for l in opr_lists}
             sel_label = st.sidebar.selectbox("Active Roster", list_map.keys(), key="opr_roster")
             active_list = list_map[sel_label]
+            st.sidebar.caption(f"Delete roster: **{fix_apostrophe_mojibake(active_list['list_name'])}**")
+            opr_pending = st.session_state.get("opr_confirm_delete_list_id") == active_list["list_id"]
+            if opr_pending:
+                st.sidebar.warning("Permanently delete this roster? This cannot be undone.")
+                c1, c2 = st.sidebar.columns(2)
+                if c1.button("Confirm delete", key="opr_confirm_delete"):
+                    cursor.execute("DELETE FROM play_armylists WHERE list_id = %s AND game_system = %s", (active_list["list_id"], "OPR"))
+                    conn.commit()
+                    st.session_state.pop("opr_confirm_delete_list_id", None)
+                    log_feature("list_deleted", detail="OPR")
+                    st.rerun()
+                if c2.button("Cancel", key="opr_cancel_delete"):
+                    st.session_state.pop("opr_confirm_delete_list_id", None)
+                    st.rerun()
+            elif st.sidebar.button("🗑️ Delete this roster", key="opr_delete_roster"):
+                st.session_state["opr_confirm_delete_list_id"] = active_list["list_id"]
+                st.rerun()
             run_opr_builder(active_list)
         else:
             st.warning("Create an OPR list in the sidebar to begin.")
@@ -110,6 +163,23 @@ try:
             list_map = {f"{fix_apostrophe_mojibake(l['list_name'])} ({l['point_limit']} pts)": l for l in w40k_lists}
             sel_label = st.sidebar.selectbox("Active Roster", list_map.keys(), key="40k_roster")
             active_list = list_map[sel_label]
+            st.sidebar.caption(f"Delete roster: **{fix_apostrophe_mojibake(active_list['list_name'])}**")
+            w40k_pending = st.session_state.get("40k_confirm_delete_list_id") == active_list["list_id"]
+            if w40k_pending:
+                st.sidebar.warning("Permanently delete this roster? This cannot be undone.")
+                c1, c2 = st.sidebar.columns(2)
+                if c1.button("Confirm delete", key="40k_confirm_delete"):
+                    cursor.execute("DELETE FROM play_armylists WHERE list_id = %s AND game_system = %s", (active_list["list_id"], "40K_10E"))
+                    conn.commit()
+                    st.session_state.pop("40k_confirm_delete_list_id", None)
+                    log_feature("list_deleted", detail="40K")
+                    st.rerun()
+                if c2.button("Cancel", key="40k_cancel_delete"):
+                    st.session_state.pop("40k_confirm_delete_list_id", None)
+                    st.rerun()
+            elif st.sidebar.button("🗑️ Delete this roster", key="40k_delete_roster"):
+                st.session_state["40k_confirm_delete_list_id"] = active_list["list_id"]
+                st.rerun()
             run_40k_builder(active_list)
         else:
             st.warning("Create a 40K list in the sidebar to begin.")
