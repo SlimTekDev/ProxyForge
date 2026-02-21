@@ -27,7 +27,7 @@ BEGIN
     FROM play_armylist_entries e
     JOIN play_armylists l ON e.list_id = l.list_id
     LEFT JOIN waha_datasheets d ON e.unit_id = d.waha_datasheet_id AND l.game_system = '40K_10E'
-    LEFT JOIN opr_units o ON e.unit_id = o.opr_unit_id AND l.game_system = 'OPR'
+    LEFT JOIN opr_units o ON e.unit_id = o.opr_unit_id AND o.army = l.faction_primary AND l.game_system = 'OPR'
     WHERE e.list_id = input_list_id;
 END ;;
 

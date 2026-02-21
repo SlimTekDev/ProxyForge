@@ -2226,14 +2226,35 @@ def run_40k_builder(active_list):
                         unit_keywords[did] = row.get("kw") or ""
             except Exception:
                 pass
-    # Attach role and sort: by role order, then by name
+    # Attach role for grouping and sort options
     for u in unique_units:
         nid = _normalize_unit_id(u.get("id")) or str(u.get("id") or "")
         kw = unit_keywords.get(nid, "")
         order, label = _unit_role_from_keywords(kw)
         u["_role_order"] = order
         u["_role_label"] = label
-    unique_units.sort(key=lambda u: (u.get("_role_order", 99), (u.get("name") or u.get("id") or "").lower()))
+    sort_options_40k = ["By role (default)", "Name A–Z", "Name Z–A", "Points ↑", "Points ↓"]
+    sort_choice_40k = st.sidebar.selectbox("Sort by", sort_options_40k, key=f"40k_sort_{list_id}")
+    group_by_role_40k = st.sidebar.toggle("Group by role", value=True, key=f"40k_group_{list_id}")
+
+    def _w40k_sort_key(u):
+        name = (u.get("name") or u.get("id") or "").lower()
+        pts = int(u.get("points") or u.get("Points") or 0)
+        ro = u.get("_role_order", 99)
+        if sort_choice_40k == "By role (default)":
+            return (0, ro, name)
+        if sort_choice_40k == "Name A–Z":
+            return (1, name)
+        if sort_choice_40k == "Name Z–A":
+            return (2, name)
+        if sort_choice_40k == "Points ↑":
+            return (3, pts, name)
+        if sort_choice_40k == "Points ↓":
+            return (4, -pts, name)
+        return (0, ro, name)
+    unique_units.sort(key=_w40k_sort_key)
+    if sort_choice_40k == "Name Z–A":
+        unique_units.reverse()
     # Roster counts for "in list" hint
     roster_unit_counts = {}
     if not cached_roster_df.empty:
@@ -2272,13 +2293,14 @@ def run_40k_builder(active_list):
                 if st.button("Next ▶", key=f"lib_next_{list_id}", disabled=next_disabled):
                     st.session_state[lib_page_key] = current_page + 1
                     st.rerun()
-    # Group by role and render current page
+    # Group by role (optional) and render current page
     current_role = None
     for unit in page_units:
-        role_label = unit.get("_role_label") or "Other"
-        if role_label != current_role:
-            current_role = role_label
-            st.sidebar.markdown(f"**{role_label}**")
+        if group_by_role_40k:
+            role_label = unit.get("_role_label") or "Other"
+            if role_label != current_role:
+                current_role = role_label
+                st.sidebar.markdown(f"**{role_label}**")
         uid = unit.get("id")
         nid = _normalize_unit_id(uid) or str(uid or "")
         in_list_count = roster_unit_counts.get(nid, 0) if nid else 0

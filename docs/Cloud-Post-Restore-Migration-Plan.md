@@ -10,6 +10,8 @@ All migration files live under **ProxyForge/migrations/** and use **no DEFINER**
 
 Run the following **on the cloud database** (e.g. DigitalOcean) in this order. Use MySQL Workbench, `mysql` CLI, or the commands below.
 
+**Schema (run first):** `opr_units_composite_pk.sql` changes `opr_units` to a composite primary key `(opr_unit_id, army)` so OPR sibling armies (e.g. Battle Brothers, Wolf Brothers, Prime Brothers) each have their own unit rows. Run this once before views/procedures; then re-run the OPR hydrator against the cloud DB so data is repopulated.
+
 **CLI (from repo root)** — replace `YOUR_DO_HOST`, `25060`, `doadmin`, `defaultdb` with your cloud DB host, port, user, and database. Use `-p` and type the password when prompted.
 
 **Single file (PowerShell):** If `mysql` is not on PATH, add it once (e.g. `$env:Path = "C:\Program Files\MySQL\MySQL Server 8.0\bin;" + $env:Path`) or add that folder in Windows **Environment Variables** → **Path**.
@@ -45,7 +47,7 @@ foreach ($f in $files) { Get-Content $f -Raw | mysql -h $dbHost -P $port -u $use
 ```powershell
 python scripts/run_cloud_migrations.py --env-file .env.cloud
 ```
-Runs the 11 required-only migration files in order using mysql-connector-python (same credentials as restore). See `python scripts/run_cloud_migrations.py --help`.
+Runs the required-only migration files in order (including opr_units_composite_pk, views, AddUnit, GetArmyRoster, view_master_army_command) using mysql-connector-python. After that, re-run the OPR hydrator with `.env.cloud` so the cloud DB has one row per (unit, army). See `python scripts/run_cloud_migrations.py --help`.
 
 **Required-only (bash, one line per file):**
 ```bash
@@ -54,6 +56,12 @@ for f in create_view_master_picker recreate_view_40k_datasheet_complete_first_mo
   mysql -h $H -P $P -u $U -p $D < "ProxyForge/migrations/${f}.sql"
 done
 ```
+
+### 0. Schema (run first)
+
+| Order | Migration file | Purpose |
+|-------|----------------|--------|
+| 0 | opr_units_composite_pk.sql | Composite PK (opr_unit_id, army) on opr_units; then re-run OPR hydrator for cloud. |
 
 ### 1. Views (no view-to-view dependencies in this block)
 

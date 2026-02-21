@@ -17,5 +17,5 @@ SELECT
 FROM play_armylists al
 LEFT JOIN play_listunits lu ON al.list_id = lu.list_id
 LEFT JOIN waha_datasheets w ON lu.waha_datasheet_id = w.waha_datasheet_id
-LEFT JOIN opr_units u ON lu.opr_unit_id = u.opr_unit_id
+LEFT JOIN opr_units u ON lu.opr_unit_id = u.opr_unit_id AND u.army = al.faction_primary
 GROUP BY al.list_id, al.list_name, al.game_system;

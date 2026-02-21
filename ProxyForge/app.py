@@ -64,6 +64,15 @@ try:
     st.sidebar.divider()
     log_page_view(page)
 
+    # Alpha notice: show when PROXYFORGE_ALPHA_BANNER is set (e.g. "1" in Streamlit Cloud secrets), or always if unset (show on cloud)
+    import os
+    _show_alpha = os.environ.get("PROXYFORGE_ALPHA_BANNER", "1").strip().lower() in ("1", "true", "yes")
+    if _show_alpha:
+        st.info(
+            "**Alpha test** — ProxyForge is under active development. The app may be restarted to fix bugs or add features. "
+            "If the app behaves erratically or you don’t see the latest changes, **refresh the page** (F5 or Ctrl+R on Windows/Linux, Cmd+R on Mac) to load the newest version."
+        )
+
     if page == "OPR Army Book Reference":
         run_army_book_ui()
     elif page == "40K Army Book Reference":

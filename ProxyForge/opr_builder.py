@@ -5,6 +5,32 @@ from library_ui import render_inline_link_unit, render_roster_stl_section
 
 #  ---- Stable Release 1.0 ----
 
+# Group order for OPR library (sort/group by type): Heroes, Core, Special, Support, Vehicles & Monsters, Other
+OPR_GROUP_ORDER = {"Heroes": 0, "Core": 1, "Special": 2, "Support": 3, "Vehicles & Monsters": 4, "Other": 5}
+
+
+def _opr_generic_name_to_group(generic_name):
+    """Map generic_name to display group (Heroes, Core, Special, Support, Vehicles & Monsters, Other)."""
+    if not generic_name or not isinstance(generic_name, str):
+        return "Other"
+    g = generic_name.strip().lower()
+    if "hero" in g:
+        return "Heroes"
+    if "titan" in g or ("great" in g and "monster" in g):
+        return "Vehicles & Monsters"
+    if any(x in g for x in ("monster", "vehicle", "tank", "walker", "gunship", "speeder", "chariot", "drop pod", "artillery beast", "brute giant")):
+        return "Vehicles & Monsters"
+    if "artillery" in g or "support " in g or "altar" in g:
+        return "Support"
+    non_core = ("elite", "heavy", "assault", "support", "veteran", "psychic", "flying", "shield", "brute")
+    if any(x in g for x in ("light infantry", "scouts", "fanatics", "swarms")) and not any(x in g for x in non_core):
+        return "Core"
+    if g == "infantry" or g == "bikers":
+        return "Core"
+    if ("infantry" in g or "bikers" in g) and not any(x in g for x in non_core):
+        return "Core"
+    return "Special"
+
 
 def show_opr_gameday_view(active_list, roster_df, total_pts):
     """Surgical tactical sheet for OPR match play: Shows active gear and struck-through replaced gear."""
@@ -459,54 +485,130 @@ def run_opr_builder(active_list):
     # Same logic for GDF and AoF: filter by faction + game_system (view_opr_master_picker.faction = opr_units.army, .game_system = opr_units.game_system)
     st.sidebar.header(f"OPR Library ({current_system})")
     primary_fac = active_list["faction_primary"].strip()
-    search = st.sidebar.text_input("Search (e.g. 'Brother')", key=f"search_opr_{active_id}")
+    search = st.sidebar.text_input("Search by unit name…", key=f"search_opr_{active_id}", placeholder="Search by unit name…")
     fallback_msg = None
     aof_systems = ("age-of-fantasy", "age-of-fantasy-skirmish", "age-of-fantasy-regiments")
+    # For AoF modes, accept any AoF system slug (data may be stored as age-of-fantasy, -skirmish, or -regiments)
+    aof_slugs = ("age-of-fantasy", "age-of-fantasy-skirmish", "age-of-fantasy-regiments")
 
-    # 1. Main query: same for GDF and AoF — faction = primary_fac AND game_system = current_system
-    lib_query = """
-        SELECT * FROM view_opr_master_picker
-        WHERE faction = %s AND game_system = %s
-    """
-    params = [primary_fac, current_system]
+    # 1. Main query: faction + game_system; for AoF accept any AoF slug so we find units regardless of stored slug
+    # For GF "* Prime Brothers" variants: also include base Prime Brothers units for full roster.
+    # For GF "* Brothers" (Battle Brothers variants, e.g. Blood Brothers, Wolf Brothers): also include Battle Brothers.
+    is_prime_variant = (
+        current_system not in aof_systems
+        and primary_fac != "Prime Brothers"
+        and primary_fac.endswith(" Prime Brothers")
+    )
+    is_battle_variant = (
+        current_system not in aof_systems
+        and primary_fac != "Battle Brothers"
+        and primary_fac.endswith(" Brothers")
+        and not primary_fac.endswith(" Prime Brothers")
+    )
+    if current_system in aof_systems:
+        lib_query = """
+            SELECT * FROM view_opr_master_picker
+            WHERE faction = %s AND game_system IN (%s, %s, %s)
+        """
+        params = [primary_fac, aof_slugs[0], aof_slugs[1], aof_slugs[2]]
+    elif is_prime_variant:
+        lib_query = """
+            SELECT * FROM view_opr_master_picker
+            WHERE (faction = %s OR faction = 'Prime Brothers') AND game_system = %s
+        """
+        params = [primary_fac, current_system]
+    elif is_battle_variant:
+        lib_query = """
+            SELECT * FROM view_opr_master_picker
+            WHERE (faction = %s OR faction = 'Battle Brothers') AND game_system = %s
+        """
+        params = [primary_fac, current_system]
+    else:
+        lib_query = """
+            SELECT * FROM view_opr_master_picker
+            WHERE faction = %s AND game_system = %s
+        """
+        params = [primary_fac, current_system]
     if search:
         lib_query += " AND name LIKE %s"
         params.append(f"%{search}%")
-    lib_query += " ORDER BY name ASC LIMIT 40"
+    lib_limit = 500
+    lib_query += f" ORDER BY name ASC LIMIT {lib_limit}"
     cursor.execute(lib_query, tuple(params))
-    lib_results = cursor.fetchall()
+    raw_results = cursor.fetchall()
 
-    if not lib_results:
-        # Fallback 1: same faction, any game_system (DB might have this army under another system)
-        fallback_query = """
-            SELECT * FROM view_opr_master_picker
-            WHERE faction = %s
-        """
+    if not raw_results:
+        fallback_query = "SELECT * FROM view_opr_master_picker WHERE faction = %s"
         fallback_params = [primary_fac]
         if search:
             fallback_query += " AND name LIKE %s"
             fallback_params.append(f"%{search}%")
-        fallback_query += " ORDER BY name ASC LIMIT 40"
+        fallback_query += f" ORDER BY name ASC LIMIT {lib_limit}"
         cursor.execute(fallback_query, tuple(fallback_params))
-        lib_results = cursor.fetchall()
-        if lib_results:
-            fallback_msg = f"No units for **{primary_fac}** with mode **{mode_display.get(current_system, current_system)}** in DB; showing all **{primary_fac}** units (any mode). Re-run the hydrator to fix `game_system` tags."
+        raw_results = cursor.fetchall()
+        if raw_results:
+            fallback_msg = f"No units for **{primary_fac}** with mode **{mode_display.get(current_system, current_system)}** in DB; showing all **{primary_fac}** units (any mode)."
 
-    if not lib_results and current_system in aof_systems:
-        # Fallback 2 (AoF only): show any units for this game system so user sees AoF data if it exists
-        fallback2_query = """
-            SELECT * FROM view_opr_master_picker
-            WHERE game_system = %s
-        """
+    if not raw_results and current_system in aof_systems:
+        fallback2_query = "SELECT * FROM view_opr_master_picker WHERE game_system = %s"
         fallback2_params = [current_system]
         if search:
             fallback2_query += " AND name LIKE %s"
             fallback2_params.append(f"%{search}%")
-        fallback2_query += " ORDER BY name ASC LIMIT 40"
+        fallback2_query += f" ORDER BY name ASC LIMIT {lib_limit}"
         cursor.execute(fallback2_query, tuple(fallback2_params))
-        lib_results = cursor.fetchall()
-        if lib_results:
+        raw_results = cursor.fetchall()
+        if raw_results:
             fallback_msg = f"No **{primary_fac}** units in database for this mode; showing sample **{mode_display.get(current_system, current_system)}** units from other armies."
+
+    # When showing variant + base army, prefer the variant's row per unit (so points/label match list)
+    if (is_prime_variant or is_battle_variant) and raw_results:
+        raw_results = sorted(raw_results, key=lambda u: (0 if (u.get("faction") or "") == primary_fac else 1, (u.get("name") or "").lower()))
+    # Dedupe by unit id
+    seen_id = set()
+    lib_results = []
+    for u in raw_results:
+        uid = str(u.get("id") or "").strip()
+        if uid and uid in seen_id:
+            continue
+        seen_id.add(uid)
+        lib_results.append(u)
+    for u in lib_results:
+        grp = _opr_generic_name_to_group(u.get("generic_name"))
+        u["_group"] = grp
+        u["_group_order"] = OPR_GROUP_ORDER.get(grp, 99)
+
+    sort_options = ["Name A–Z", "Name Z–A", "Points ↑", "Points ↓", "Role (Heroes first)"]
+    sort_choice = st.sidebar.selectbox("Sort by", sort_options, key=f"opr_sort_{active_id}")
+    group_by_type = st.sidebar.toggle("Group by type", value=True, key=f"opr_group_{active_id}")
+
+    def _sort_key(u):
+        name = (u.get("name") or "").lower()
+        pts = int(u.get("points") or 0)
+        go = u.get("_group_order", 99)
+        if sort_choice == "Name A–Z":
+            return (0, name)
+        if sort_choice == "Name Z–A":
+            return (1, name)  # sort ascending then reverse below
+        if sort_choice == "Points ↑":
+            return (2, pts, name)
+        if sort_choice == "Points ↓":
+            return (3, -pts, name)
+        return (4, go, name)
+    lib_results.sort(key=_sort_key)
+    if sort_choice == "Name Z–A":
+        lib_results.reverse()
+
+    page_size = 20
+    lib_page_key = f"opr_lib_page_{active_id}"
+    if lib_page_key not in st.session_state:
+        st.session_state[lib_page_key] = 0
+    total_units = len(lib_results)
+    total_pages = max(1, (total_units + page_size - 1) // page_size)
+    current_page = min(max(0, st.session_state[lib_page_key]), total_pages - 1)
+    st.session_state[lib_page_key] = current_page
+    start_idx = current_page * page_size
+    page_units = lib_results[start_idx : start_idx + page_size] if lib_results else []
 
     if not lib_results:
         st.sidebar.warning("No units found. Try a broader search or check that OPR data for this army (and game mode) is loaded.")
@@ -529,30 +631,41 @@ def run_opr_builder(active_list):
                     st.markdown("Run `python scripts/opr/newest_hydrator.py` from repo root (same .env as app) to sync OPR data.")
             except Exception as e:
                 st.markdown(f"**Diagnostic error:** {e}")
+    else:
+        st.sidebar.caption(f"{total_units} units · Page {current_page + 1} of {total_pages}")
+        if total_pages > 1:
+            p1, p2, p3 = st.sidebar.columns([1, 1, 1])
+            with p1:
+                if st.button("◀ Prev", key=f"opr_lib_prev_{active_id}", disabled=(current_page <= 0)):
+                    st.session_state[lib_page_key] = current_page - 1
+                    st.rerun()
+            with p3:
+                if st.button("Next ▶", key=f"opr_lib_next_{active_id}", disabled=(current_page >= total_pages - 1)):
+                    st.session_state[lib_page_key] = current_page + 1
+                    st.rerun()
 
     if fallback_msg:
         st.sidebar.info(fallback_msg)
 
-    # 2. Rendering Loop (Simplified for Sidebar stability)
-    for unit in lib_results:
-        u_id = unit['id']
-        u_size = unit.get('size', 1)
+    current_role = None
+    for unit in page_units:
+        if group_by_type:
+            role_label = unit.get("_group") or "Other"
+            if role_label != current_role:
+                current_role = role_label
+                st.sidebar.markdown(f"**{role_label}**")
+        u_id = unit["id"]
+        u_size = unit.get("size", 1)
         comp = f"[{u_size} models]" if u_size > 1 else "[Hero]"
-        
-        # We use a single markdown block for the info to prevent column collapse
         st.sidebar.markdown(f"**{unit['name']}** {comp}")
         st.sidebar.caption(f"{unit['faction']} — **{unit['points']} pts**")
-        
-        # Small buttons side-by-side
         btn_col1, btn_col2 = st.sidebar.columns(2)
         if btn_col1.button("➕ Add", key=f"add_lib_{u_id}_{active_id}", width="stretch"):
-            cursor.callproc('AddUnit', (active_id, str(u_id), 1))
+            cursor.callproc("AddUnit", (active_id, str(u_id), 1))
             conn.commit()
             st.rerun()
-            
         if btn_col2.button("👁️ Info", key=f"det_lib_{u_id}_{active_id}", width="stretch"):
-            show_opr_details(u_id, entry_id=None, faction=unit['faction'], game_system=active_list.get('game_system') or 'grimdark-future')
-        
+            show_opr_details(u_id, entry_id=None, faction=unit["faction"], game_system=active_list.get("game_system") or "grimdark-future")
         st.sidebar.divider()
 
     # --- 5. ROSTER MAIN PANEL ---

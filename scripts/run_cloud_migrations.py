@@ -29,8 +29,9 @@ except ImportError:
 REPO_ROOT = Path(__file__).resolve().parents[1]
 MIGRATIONS_DIR = REPO_ROOT / "ProxyForge" / "migrations"
 
-# Required-only (12 files) in dependency order — includes GetArmyRoster for OPR builder
+# Required-only: opr_units composite PK first, then views/procedures in dependency order
 REQUIRED_FILES = [
+    "opr_units_composite_pk.sql",
     "create_view_master_picker.sql",
     "recreate_view_40k_datasheet_complete_first_model.sql",
     "recreate_view_40k_unit_composition_with_max.sql",
@@ -43,9 +44,10 @@ REQUIRED_FILES = [
     "create_view_opr_unit_rules_detailed.sql",
     "create_procedure_AddUnit.sql",
     "create_procedure_GetArmyRoster.sql",
+    "create_view_master_army_command.sql",
 ]
 
-# Full parity — required + optional views (GetArmyRoster already in REQUIRED_FILES)
+# Full parity — required + optional views and procedures
 FULL_FILES = REQUIRED_FILES + [
     "create_view_40k_model_stats.sql",
     "create_view_master_picker_40k.sql",

@@ -26,9 +26,10 @@ BEGIN
         FROM play_armylist_entries e
         JOIN waha_datasheets d ON e.unit_id = d.waha_datasheet_id
         UNION ALL
-        SELECT list_id, (o.base_cost * e.quantity) AS unit_total
-        FROM opr_units o
-        JOIN play_armylist_entries e ON o.opr_unit_id = e.unit_id
+        SELECT e.list_id, (o.base_cost * e.quantity) AS unit_total
+        FROM play_armylist_entries e
+        JOIN play_armylists l ON e.list_id = l.list_id AND l.game_system = 'OPR'
+        JOIN opr_units o ON o.opr_unit_id = e.unit_id AND o.army = l.faction_primary
     ) AS calc ON l.list_id = calc.list_id
     WHERE l.list_id = target_list_id
     GROUP BY l.list_id;
