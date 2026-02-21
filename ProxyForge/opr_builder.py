@@ -399,7 +399,7 @@ def run_opr_builder(active_list):
     active_id = active_list['list_id']
     
     # --- 1. DATA PREP ---
-    cursor.callproc('GetOPRArmyRoster', (active_id,))
+    cursor.callproc('GetArmyRoster', (active_id,))
     roster_df = pd.DataFrame()
     for result in cursor.stored_results():
         roster_df = pd.DataFrame(result.fetchall())
