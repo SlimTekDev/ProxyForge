@@ -1,0 +1,4 @@
+# Disable file watcher to avoid inotify instance limit on Streamlit Cloud
+# (OSError: [Errno 24] inotify instance limit reached)
+[server]
+fileWatcherType = "none"
