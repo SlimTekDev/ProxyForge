@@ -81,16 +81,30 @@ def main() -> int:
     conn = mysql.connector.connect(**conn_kw)
     cursor = conn.cursor(dictionary=True)
     try:
-        cursor.execute(sql)
-        rows = cursor.fetchall()
-        if rows:
-            for r in rows:
-                print("\t".join(str(v) for v in r.values()))
-            print(f"({len(rows)} row(s))")
+        # Split into statements so multi-statement files (e.g. clean_opr_tables.sql) don't cause "Commands out of sync"
+        statements = [s.strip() for s in sql.split(";") if s.strip()]
+        if not statements:
+            print("(no statements)")
+            return 0
+        last_rows = None
+        for stmt in statements:
+            cursor.execute(stmt)
+            if cursor.with_rows:
+                last_rows = cursor.fetchall()
+        if last_rows is not None:
+            if last_rows:
+                for r in last_rows:
+                    print("\t".join(str(v) for v in r.values()))
+                print(f"({len(last_rows)} row(s))")
+            else:
+                print("(0 rows)")
         else:
-            print("(0 rows)")
+            print("(executed)")
         conn.commit()
     except mysql.connector.errors.ProgrammingError as e:
+        print(e, file=sys.stderr)
+        return 1
+    except mysql.connector.errors.InterfaceError as e:
         print(e, file=sys.stderr)
         return 1
     finally:

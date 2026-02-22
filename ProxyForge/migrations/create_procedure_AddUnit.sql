@@ -30,6 +30,7 @@ BEGIN
         FROM play_armylist_entries e
         JOIN play_armylists l ON e.list_id = l.list_id AND l.game_system = 'OPR'
         JOIN opr_units o ON o.opr_unit_id = e.unit_id AND o.army = l.faction_primary
+        AND o.game_system = COALESCE((SELECT setting_name FROM opr_army_settings WHERE army_name = l.faction_primary LIMIT 1), 'grimdark-future')
     ) AS calc ON l.list_id = calc.list_id
     WHERE l.list_id = target_list_id
     GROUP BY l.list_id;

@@ -24,12 +24,24 @@ import mysql.connector
 
 _REPO = Path(__file__).resolve().parents[2]
 DEFAULT_FILE = _REPO / "data" / "opr" / "army_details.json"
-DB_CONFIG = {
-    "host": os.environ.get("MYSQL_HOST", "127.0.0.1"),
-    "user": os.environ.get("MYSQL_USER", "hobby_admin"),
-    "password": os.environ.get("MYSQL_PASSWORD", ""),
-    "database": os.environ.get("MYSQL_DATABASE", "wargaming_erp"),
-}
+
+
+def _mysql_config():
+    cfg = {
+        "host": (os.environ.get("MYSQL_HOST") or "127.0.0.1").strip(),
+        "user": (os.environ.get("MYSQL_USER") or "hobby_admin").strip(),
+        "password": (os.environ.get("MYSQL_PASSWORD") or "").strip().strip("\ufeff").replace("\r", ""),
+        "database": (os.environ.get("MYSQL_DATABASE") or "wargaming_erp").strip(),
+    }
+    port = (os.environ.get("MYSQL_PORT") or "").strip()
+    if port:
+        cfg["port"] = int(port)
+    if cfg["host"] not in ("localhost", "127.0.0.1"):
+        cfg["connection_timeout"] = int((os.environ.get("MYSQL_CONNECTION_TIMEOUT") or "60").strip())
+        cfg["ssl_disabled"] = False
+        if (os.environ.get("MYSQL_SSL_VERIFY") or "1").strip().lower() in ("0", "false", "no"):
+            cfg["ssl_verify_cert"] = False
+    return cfg
 
 
 def main():
@@ -48,7 +60,7 @@ def main():
         details = [details]
 
     try:
-        conn = mysql.connector.connect(**DB_CONFIG)
+        conn = mysql.connector.connect(**_mysql_config())
     except mysql.connector.Error as err:
         print(f"Connection failed: {err}")
         return 1

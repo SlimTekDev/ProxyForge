@@ -1,3 +1,6 @@
+import json
+from pathlib import Path
+
 import streamlit as st
 import pandas as pd
 from database_utils import get_db_connection
@@ -14,37 +17,114 @@ except ImportError:
     def log_page_view(_): pass
     def log_feature(*_, **__): pass
 
-st.set_page_config(layout="wide", page_title="ProxyForge")
-
-# OPR armies by game system (official OPR names). Merged with DB factions so dropdown is populated even without DB data.
-OPR_ARMIES_BY_SYSTEM = {
-    "grimdark-future": [],
-    "grimdark-future-firefight": [],
-    "age-of-fantasy": [
-        "Beastmen", "Chivalrous Kingdoms", "Dark Elves", "Deep-Sea Elves", "Duchies of Vinci",
-        "Dwarves", "Eternal Wardens", "Ghostly Undead", "Giant Tribes", "Goblins", "Halflings",
-        "Havoc Dwarves", "Havoc War Clans", "Havoc Warriors", "High Elves", "Human Empire",
-        "Kingdom of Angels", "Mummified Undead", "Ogres", "Orcs", "Ossified Undead", "Ratmen",
-        "Rift Daemons", "Saurians", "Shadow Stalkers", "Sky-City Dwarves", "Vampiric Undead",
-        "Volcanic Dwarves", "Wood Elves",
-    ],
-    "age-of-fantasy-skirmish": [
-        "Beastmen", "Chivalrous Kingdoms", "Dark Elves", "Deep-Sea Elves", "Duchies of Vinci",
-        "Dwarves", "Eternal Wardens", "Ghostly Undead", "Giant Tribes", "Goblins", "Halflings",
-        "Havoc Dwarves", "Havoc War Clans", "Havoc Warriors", "High Elves", "Human Empire",
-        "Kingdom of Angels", "Mummified Undead", "Ogres", "Orcs", "Ossified Undead", "Ratmen",
-        "Rift Daemons", "Saurians", "Shadow Stalkers", "Sky-City Dwarves", "Vampiric Undead",
-        "Volcanic Dwarves", "Wood Elves",
-    ],
-    "age-of-fantasy-regiments": [
-        "Beastmen", "Chivalrous Kingdoms", "Dark Elves", "Deep-Sea Elves", "Duchies of Vinci",
-        "Dwarves", "Eternal Wardens", "Ghostly Undead", "Giant Tribes", "Goblins", "Halflings",
-        "Havoc Dwarves", "Havoc War Clans", "Havoc Warriors", "High Elves", "Human Empire",
-        "Kingdom of Angels", "Mummified Undead", "Ogres", "Orcs", "Ossified Undead", "Ratmen",
-        "Rift Daemons", "Saurians", "Shadow Stalkers", "Sky-City Dwarves", "Vampiric Undead",
-        "Volcanic Dwarves", "Wood Elves",
-    ],
+# OPR game system number (Army Forge API) -> slug (DB / view_opr_master_picker)
+OPR_GAME_SYSTEM_NUM_TO_SLUG = {
+    2: "grimdark-future",
+    3: "grimdark-future-firefight",
+    4: "age-of-fantasy",
+    5: "age-of-fantasy-skirmish",
+    6: "age-of-fantasy-regiments",
 }
+SLUG_TO_GAME_SYSTEM_NUM = {v: k for k, v in OPR_GAME_SYSTEM_NUM_TO_SLUG.items()}
+
+
+def _load_opr_factions_from_source_list(opr_mode_slug):
+    """Load faction display options for the Create New List dropdown from army_forge_armies.json.
+    This ensures all armies (including creator) show up even if the DB hasn't been hydrated yet."""
+    try:
+        path = Path(__file__).resolve().parent.parent / "data" / "opr" / "army_forge_armies.json"
+        if not path.exists():
+            return None
+        with open(path, "r", encoding="utf-8") as f:
+            armies = json.load(f)
+    except Exception:
+        return None
+    game_system_num = SLUG_TO_GAME_SYSTEM_NUM.get(opr_mode_slug)
+    if game_system_num is None:
+        return None
+    # (armyName strip, source) per faction; prefer creator if same name appears twice
+    by_name = {}
+    for a in armies:
+        if a.get("gameSystem") != game_system_num:
+            continue
+        name = (a.get("armyName") or "").strip()
+        if not name:
+            continue
+        src = a.get("source", "official")
+        if name not in by_name or src == "creator":
+            by_name[name] = src
+    official = sorted(n for n, s in by_name.items() if s == "official")
+    creator = sorted(n for n, s in by_name.items() if s == "creator")
+
+    def _opr_faction_display(name, source_label):
+        tag = ""
+        if opr_mode_slug == "age-of-fantasy-skirmish" and name in GUILDS_OF_THE_NEXUS_FACTIONS:
+            tag = " (Guilds)"
+        elif opr_mode_slug == "grimdark-future-firefight" and name in GANGS_OF_NEW_EDEN_FACTIONS:
+            tag = " (Gangs)"
+        return name + tag + " " + source_label
+
+    return (
+        [_opr_faction_display(f, "(Official)") for f in official]
+        + [_opr_faction_display(f, "(Creator)") for f in creator]
+    )
+
+
+def _load_opr_army_source_lookup():
+    """(army_name, game_system_slug) -> 'official' | 'creator'. Uses data/opr/army_forge_armies.json.
+    When the same (armyName, slug) appears as both official and creator, prefer 'creator' so creator books are visible."""
+    try:
+        path = Path(__file__).resolve().parent.parent / "data" / "opr" / "army_forge_armies.json"
+        if not path.exists():
+            return {}
+        with open(path, "r", encoding="utf-8") as f:
+            armies = json.load(f)
+        # Collect all sources per (armyName, slug); then prefer "creator" if any entry is creator
+        by_key = {}
+        for a in armies:
+            gs = a.get("gameSystem")
+            slug = OPR_GAME_SYSTEM_NUM_TO_SLUG.get(gs)
+            if slug and a.get("armyName"):
+                key = (a["armyName"].strip(), slug)
+                by_key.setdefault(key, set()).add(a.get("source", "official"))
+        return {k: ("creator" if "creator" in v else "official") for k, v in by_key.items()}
+    except Exception:
+        return {}
+
+
+# Guilds of the Nexus subfactions (Age of Fantasy Skirmish) — show "(Guilds)" tag in dropdown
+GUILDS_OF_THE_NEXUS_FACTIONS = frozenset({
+    "Brute Clans", "Crazed Zealots", "Furious Tribes", "Hidden Syndicates",
+    "Hired Guards", "Mercenaries", "Merchant Unions", "Outskirt Raiders",
+    "Shortling Alliances", "Trade Federations", "Treasure Hunters",
+})
+
+# Gangs of New Eden subfactions (Grimdark Future Firefight) — show "(Gangs)" tag in dropdown
+GANGS_OF_NEW_EDEN_FACTIONS = frozenset({
+    "Badland Nomads", "Berserker Clans", "Brute Coalitions", "City Runners",
+    "Mega-Corps", "Mercenaries", "Psycho Cults", "Security Forces",
+    "Shadow Leagues", "Shortling Federations", "Worker Unions",
+})
+
+
+def _strip_opr_faction_label(display_value):
+    """Remove ' (Official)', ' (Creator)', ' (Guilds)', ' (Gangs)' from dropdown selection to get faction_primary."""
+    if not display_value:
+        return display_value
+    suffixes = (" (Official)", " (Creator)", " (Guilds)", " (Gangs)")
+    while True:
+        changed = False
+        for suffix in suffixes:
+            if display_value.endswith(suffix):
+                display_value = display_value[: -len(suffix)]
+                changed = True
+                break
+        if not changed:
+            break
+    return display_value
+
+
+st.set_page_config(layout="wide", page_title="ProxyForge")
 
 try:
     conn = get_db_connection()
@@ -99,29 +179,58 @@ try:
                 "Age of Fantasy Regiments": "age-of-fantasy-regiments"
             }
             opr_mode_slug = mode_map[opr_mode]
-            # Game-system aware: view_opr_master_picker has per-system game_system (grimdark-future, age-of-fantasy, etc.)
-            cursor.execute(
-                "SELECT DISTINCT faction FROM view_opr_master_picker WHERE game_system = %s",
-                (opr_mode_slug,),
-            )
-            db_factions = [f["faction"] for f in cursor.fetchall()]
-            static_armies = OPR_ARMIES_BY_SYSTEM.get(opr_mode_slug, [])
-            fac_options = sorted(set(db_factions) | set(static_armies))
-            p_fac = st.selectbox("Primary Army", fac_options, key="opr_fac")
+            # Dropdown from source list so all armies (including creator) show even if DB not hydrated
+            fac_options = _load_opr_factions_from_source_list(opr_mode_slug)
+            if not fac_options:
+                # Fallback: factions from DB (e.g. if army_forge_armies.json missing)
+                cursor.execute(
+                    "SELECT DISTINCT faction FROM view_opr_master_picker WHERE game_system = %s",
+                    (opr_mode_slug,),
+                )
+                all_factions = sorted([f["faction"] for f in cursor.fetchall()])
+                source_lookup = _load_opr_army_source_lookup()
+                official_factions = sorted(
+                    f for f in all_factions
+                    if source_lookup.get((f, opr_mode_slug), "official") == "official"
+                )
+                creator_factions = sorted(
+                    f for f in all_factions
+                    if source_lookup.get((f, opr_mode_slug), "official") == "creator"
+                )
+
+                def _opr_faction_display(name, source_label):
+                    tag = ""
+                    if opr_mode_slug == "age-of-fantasy-skirmish" and name in GUILDS_OF_THE_NEXUS_FACTIONS:
+                        tag = " (Guilds)"
+                    elif opr_mode_slug == "grimdark-future-firefight" and name in GANGS_OF_NEW_EDEN_FACTIONS:
+                        tag = " (Gangs)"
+                    return name + tag + " " + source_label
+
+                fac_options = (
+                    [_opr_faction_display(f, "(Official)") for f in official_factions]
+                    + [_opr_faction_display(f, "(Creator)") for f in creator_factions]
+                )
+            if not fac_options:
+                st.caption("No armies found for this game mode. Add armies to data/opr/army_forge_armies.json and run build_unified_army_list.py, or run fetch and hydrator to load OPR data.")
+            p_fac_display = st.selectbox("Primary Army", fac_options or ["—"], key="opr_fac")
+            p_fac = _strip_opr_faction_label(p_fac_display) if p_fac_display and p_fac_display != "—" else None
             new_pts = st.number_input("Points", value=2000, step=250, key="opr_pts")
             if st.button("Save List", key="opr_save"):
-                cursor.execute(
-                    "INSERT INTO play_armylists (list_name, game_system, point_limit, faction_primary) VALUES (%s, %s, %s, %s)",
-                    (new_name, "OPR", new_pts, p_fac)
-                )
-                cursor.execute("""
-                    INSERT INTO opr_army_settings (army_name, setting_name)
-                    VALUES (%s, %s)
-                    ON DUPLICATE KEY UPDATE setting_name = VALUES(setting_name)
-                """, (p_fac, opr_mode_slug))
-                conn.commit()
-                log_feature("list_created", detail="OPR")
-                st.rerun()
+                if not p_fac:
+                    st.error("Select a primary army.")
+                else:
+                    cursor.execute(
+                        "INSERT INTO play_armylists (list_name, game_system, point_limit, faction_primary) VALUES (%s, %s, %s, %s)",
+                        (new_name, "OPR", new_pts, p_fac)
+                    )
+                    cursor.execute("""
+                        INSERT INTO opr_army_settings (army_name, setting_name)
+                        VALUES (%s, %s)
+                        ON DUPLICATE KEY UPDATE setting_name = VALUES(setting_name)
+                    """, (p_fac, opr_mode_slug))
+                    conn.commit()
+                    log_feature("list_created", detail="OPR")
+                    st.rerun()
 
         cursor.execute("SELECT * FROM play_armylists WHERE game_system = %s", ("OPR",))
         opr_lists = cursor.fetchall()

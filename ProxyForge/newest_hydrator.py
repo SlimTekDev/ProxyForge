@@ -10,12 +10,24 @@ except ImportError:
 
 import mysql.connector
 
-DB_CONFIG = {
-    "host": os.environ.get("MYSQL_HOST", "127.0.0.1"),
-    "user": os.environ.get("MYSQL_USER", "hobby_admin"),
-    "password": os.environ.get("MYSQL_PASSWORD", ""),
-    "database": os.environ.get("MYSQL_DATABASE", "wargaming_erp"),
-}
+def _mysql_config():
+    cfg = {
+        "host": (os.environ.get("MYSQL_HOST") or "127.0.0.1").strip(),
+        "user": (os.environ.get("MYSQL_USER") or "hobby_admin").strip(),
+        "password": (os.environ.get("MYSQL_PASSWORD") or "").strip().strip("\ufeff").replace("\r", ""),
+        "database": (os.environ.get("MYSQL_DATABASE") or "wargaming_erp").strip(),
+    }
+    port = (os.environ.get("MYSQL_PORT") or "").strip()
+    if port:
+        cfg["port"] = int(port)
+    if cfg["host"] not in ("localhost", "127.0.0.1"):
+        cfg["connection_timeout"] = int((os.environ.get("MYSQL_CONNECTION_TIMEOUT") or "60").strip())
+        cfg["ssl_disabled"] = False
+        if (os.environ.get("MYSQL_SSL_VERIFY") or "1").strip().lower() in ("0", "false", "no"):
+            cfg["ssl_verify_cert"] = False
+    return cfg
+
+DB_CONFIG = _mysql_config
 
 # OPR export JSON: set OPR_DATA_JSON path or place data.json in repo data/opr/
 _REPO = Path(__file__).resolve().parent.parent
@@ -30,8 +42,7 @@ def dual_system_sync():
         return
 
     try:
-        # Connect using the new hobby_admin credentials
-        conn = mysql.connector.connect(**DB_CONFIG)
+        conn = mysql.connector.connect(**(DB_CONFIG() if callable(DB_CONFIG) else DB_CONFIG))
         cursor = conn.cursor()
 
         sql = """
@@ -47,6 +58,7 @@ def dual_system_sync():
                 quality = VALUES(quality),
                 defense = VALUES(defense),
                 wounds = VALUES(wounds),
+                game_system = VALUES(game_system),
                 base_size_round = VALUES(base_size_round),
                 generic_name = VALUES(generic_name),
                 image_url = VALUES(image_url)

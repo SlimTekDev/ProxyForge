@@ -20,7 +20,7 @@ import argparse
 import json
 import sys
 from pathlib import Path
-from urllib.parse import urlencode
+from urllib.parse import parse_qs, urlencode, urlparse
 
 try:
     import requests
@@ -92,10 +92,34 @@ def generic_name_to_group(generic_name):
     return "Special"
 
 
-def normalize_book(book):
-    """Convert one armyInfo response to list of entries for our hydrator/analyzer."""
+# Canonical slugs: 2=GDF, 3=Firefight, 4=AoF, 5=AoF Skirmish, 6=AoF Regiments.
+GAME_SYSTEM_TO_SLUG = {
+    2: "grimdark-future",
+    3: "grimdark-future-firefight",
+    4: "age-of-fantasy",
+    5: "age-of-fantasy-skirmish",
+    6: "age-of-fantasy-regiments",
+}
+
+
+def _book_game_system_slug(book, game_system_num=None):
+    """Resolve canonical game system slug. Prefer API response (gameSystemId/gameSystemSlug) when present."""
+    api_id = book.get("gameSystemId")
+    if api_id is not None and api_id in GAME_SYSTEM_TO_SLUG:
+        return GAME_SYSTEM_TO_SLUG[api_id]
+    api_slug = (book.get("gameSystemSlug") or "").strip()
+    if api_slug and api_slug in GAME_SYSTEM_TO_SLUG.values():
+        return api_slug
+    if game_system_num is not None and game_system_num in GAME_SYSTEM_TO_SLUG:
+        return GAME_SYSTEM_TO_SLUG[game_system_num]
+    return book.get("gameSystemSlug") or "grimdark-future"
+
+
+def normalize_book(book, game_system_num=None):
+    """Convert one armyInfo response to list of entries for our hydrator/analyzer.
+    Uses API gameSystemId/gameSystemSlug when present so GFF and other systems are correct."""
     army = book.get("name") or ""
-    system = book.get("gameSystemSlug") or "grimdark-future"
+    system = _book_game_system_slug(book, game_system_num)
     packages = book.get("upgradePackages") or []
     entries = []
     for u in book.get("units") or []:
@@ -123,10 +147,11 @@ def normalize_book(book):
     return entries
 
 
-def extract_army_detail(book):
-    """Build one army-detail record from a book response for opr_army_detail."""
+def extract_army_detail(book, game_system_num=None):
+    """Build one army-detail record from a book response for opr_army_detail.
+    Uses API gameSystemId/gameSystemSlug when present so GFF and other systems are correct."""
     army_name = book.get("name") or ""
-    game_system = book.get("gameSystemSlug") or "grimdark-future"
+    game_system = _book_game_system_slug(book, game_system_num)
     background = book.get("backgroundFull") or book.get("background") or ""
     army_wide_rules = ""  # API has no separate army-wide list; leave for manual or future
 
@@ -185,11 +210,89 @@ def main():
     ap.add_argument("--out", type=Path, default=DEFAULT_OUT, help="Output data.json path")
     ap.add_argument("--army-details-out", type=Path, default=DEFAULT_ARMY_DETAILS_OUT, help="Output army_details.json for opr_army_detail hydrator")
     ap.add_argument("--from-file", type=Path, metavar="PATH", help="Use a single saved armyInfo JSON file instead of fetching (e.g. paste from browser)")
+    ap.add_argument("--append-url", metavar="URL", action="append", help="Fetch army book(s) from URL(s) and append units to data.json. May be repeated for multiple books.")
+    ap.add_argument("--append-url-file", metavar="PATH", type=Path, help="Read URLs from file (one per line) and append all to data.json.")
     args = ap.parse_args()
+    if getattr(args, "append_url_file", None) and args.append_url_file:
+        if not args.append_url_file.exists():
+            print(f"File not found: {args.append_url_file}", file=sys.stderr)
+            sys.exit(1)
+        with open(args.append_url_file, "r", encoding="utf-8") as f:
+            args.append_url = list(args.append_url or []) + [s.strip() for s in f if s.strip()]
 
     args.out.parent.mkdir(parents=True, exist_ok=True)
     all_entries = []
     army_details = []
+
+    if args.append_url:
+        session = requests.Session()
+        session.headers.setdefault("Accept", "application/json")
+        session.headers.setdefault("User-Agent", "Mozilla/5.0 (compatible; ProxyForge-OPR-Fetcher/1.0)")
+        books_by_army = {}
+        for i, url in enumerate(args.append_url):
+            try:
+                r = session.get(url.strip(), timeout=30)
+                r.raise_for_status()
+                book = r.json()
+            except Exception as e:
+                print(f"Failed to fetch URL {i + 1}: {e}", file=sys.stderr)
+                continue
+            # Parse URL for gameSystem so we use canonical slug (4=age-of-fantasy, never regiments).
+            parsed = urlparse(url.strip())
+            qs = parse_qs(parsed.query)
+            gs = qs.get("gameSystem", [None])[0]
+            game_system_num = int(gs) if gs is not None else None
+            if game_system_num is not None and game_system_num in GAME_SYSTEM_TO_SLUG:
+                book = {**book, "gameSystemSlug": GAME_SYSTEM_TO_SLUG[game_system_num]}
+            army_name = book.get("name") or "Unknown"
+            entries = normalize_book(book, game_system_num)
+            books_by_army[army_name] = (entries, book)
+            print(f"  {army_name}: {len(entries)} units")
+        if not books_by_army:
+            print("No books fetched.", file=sys.stderr)
+            sys.exit(1)
+        # Replace only (army, system) pairs we're fetching so GF and Firefight can both exist (e.g. ~3076 total).
+        army_system_pairs = set()
+        for _name, (_entries, book) in books_by_army.items():
+            slug = book.get("gameSystemSlug") or "grimdark-future"
+            army_system_pairs.add((_name, slug))
+        if args.out.exists():
+            with open(args.out, "r", encoding="utf-8") as f:
+                existing = json.load(f)
+            existing = [
+                e for e in existing
+                if (e.get("army") or "", (e.get("system") or "grimdark-future")) not in army_system_pairs
+            ]
+            for _name, (entries, _book) in books_by_army.items():
+                existing.extend(entries)
+            all_entries = existing
+        else:
+            for _name, (entries, _book) in books_by_army.items():
+                all_entries.extend(entries)
+        with open(args.out, "w", encoding="utf-8") as f:
+            json.dump(all_entries, f, ensure_ascii=False, indent=2)
+        print(f"Wrote {len(all_entries)} total units to {args.out}.")
+        if args.army_details_out:
+            detail_keys = set(
+                (book.get("name") or "Unknown", book.get("gameSystemSlug") or "grimdark-future")
+                for _n, (_e, book) in books_by_army.items()
+            )
+            if args.army_details_out.exists():
+                with open(args.army_details_out, "r", encoding="utf-8") as f:
+                    details_list = json.load(f)
+                details_list = [
+                    d for d in details_list
+                    if (d.get("army_name") or "", d.get("game_system") or "grimdark-future") not in detail_keys
+                ]
+            else:
+                details_list = []
+            for _name, (_entries, book) in books_by_army.items():
+                details_list.append(extract_army_detail(book))
+            args.army_details_out.parent.mkdir(parents=True, exist_ok=True)
+            with open(args.army_details_out, "w", encoding="utf-8") as f:
+                json.dump(details_list, f, ensure_ascii=False, indent=2)
+            print(f"Updated {args.army_details_out.name} with {len(books_by_army)} army details.")
+        return
 
     if args.from_file:
         if not args.from_file.exists():
@@ -223,12 +326,15 @@ def main():
                 continue
             try:
                 book = fetch_army(army_id, game_system, army_name, session)
-                entries = normalize_book(book)
+                api_sys = book.get("gameSystemId")
+                if api_sys is not None and api_sys != game_system:
+                    print(f"  {army_name}: list gameSystem={game_system} but API gameSystemId={api_sys} (using API)", file=sys.stderr)
+                entries = normalize_book(book, game_system)
                 all_entries.extend(entries)
-                army_details.append(extract_army_detail(book))
+                army_details.append(extract_army_detail(book, game_system))
                 print(f"  {army_name}: {len(entries)} units")
             except Exception as e:
-                print(f"  {army_name}: FAILED — {e}", file=sys.stderr)
+                print(f"  {army_name} (armyId={army_id}, gameSystem={game_system}): FAILED — {e}", file=sys.stderr)
                 print("  Tip: Save the api/army-books response from your browser to a .json file and run with --from-file.", file=sys.stderr)
 
     with open(args.out, "w", encoding="utf-8") as f:

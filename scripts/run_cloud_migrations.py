@@ -32,6 +32,7 @@ MIGRATIONS_DIR = REPO_ROOT / "ProxyForge" / "migrations"
 # Required-only: opr_units composite PK first, then views/procedures in dependency order
 REQUIRED_FILES = [
     "opr_units_composite_pk.sql",
+    "opr_units_pk_include_game_system.sql",
     "create_view_master_picker.sql",
     "recreate_view_40k_datasheet_complete_first_model.sql",
     "recreate_view_40k_unit_composition_with_max.sql",

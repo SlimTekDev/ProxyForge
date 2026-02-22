@@ -10,7 +10,7 @@ All migration files live under **ProxyForge/migrations/** and use **no DEFINER**
 
 Run the following **on the cloud database** (e.g. DigitalOcean) in this order. Use MySQL Workbench, `mysql` CLI, or the commands below.
 
-**Schema (run first):** `opr_units_composite_pk.sql` changes `opr_units` to a composite primary key `(opr_unit_id, army)` so OPR sibling armies (e.g. Battle Brothers, Wolf Brothers, Prime Brothers) each have their own unit rows. Run this once before views/procedures; then re-run the OPR hydrator against the cloud DB so data is repopulated.
+**Schema (run first):** `opr_units_composite_pk.sql` changes `opr_units` to composite PK `(opr_unit_id, army)`; then `opr_units_pk_include_game_system.sql` extends it to `(opr_unit_id, army, game_system)` so GF and Firefight (and other systems) can each have their own rows (~3076 total). Run these once before views/procedures; then re-run the OPR hydrator against the cloud DB.
 
 **CLI (from repo root)** — replace `YOUR_DO_HOST`, `25060`, `doadmin`, `defaultdb` with your cloud DB host, port, user, and database. Use `-p` and type the password when prompted.
 
@@ -61,7 +61,8 @@ done
 
 | Order | Migration file | Purpose |
 |-------|----------------|--------|
-| 0 | opr_units_composite_pk.sql | Composite PK (opr_unit_id, army) on opr_units; then re-run OPR hydrator for cloud. |
+| 0 | opr_units_composite_pk.sql | Composite PK (opr_unit_id, army) on opr_units. |
+| 0b | opr_units_pk_include_game_system.sql | Extend PK to (opr_unit_id, army, game_system); drops FKs that referenced opr_unit_id only. Then re-run OPR hydrator for cloud. |
 
 ### 1. Views (no view-to-view dependencies in this block)
 

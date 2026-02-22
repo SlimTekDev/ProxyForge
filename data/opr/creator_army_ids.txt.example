@@ -1,0 +1,6 @@
+# Creator army IDs (only used when official_army_ids.txt does NOT exist).
+# One armyId per line. When official_army_ids.txt exists, source is determined by
+# that allowlist instead (see build_official_army_ids.py and official_army_ids.txt).
+# Example (replace with real creator army IDs from OPR):
+# abc123creator1
+# def456creator2
