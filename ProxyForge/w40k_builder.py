@@ -8,6 +8,28 @@ from w40k_roster import get_roster_40k, add_unit_40k, get_datasheet_id_for_entry
 
 # --- 1. HELPER FUNCTIONS ---
 
+
+def _dedupe_by_key(items, key_fn):
+    """Dedupe a list of dicts by key (first occurrence wins). Server-side fix for duplicate DB rows.
+    key_fn receives a dict with lowercase keys so DB column casing (Model vs model) doesn't split keys."""
+    if not items:
+        return items
+    seen = set()
+    out = []
+    for item in items:
+        norm = {str(k).lower(): v for k, v in (item.items() if isinstance(item, dict) else [])}
+        k = key_fn(norm)
+        try:
+            key_tuple = tuple(str(x) for x in (k if isinstance(k, (list, tuple)) else [k]))
+        except (TypeError, ValueError):
+            key_tuple = (str(k),)
+        if key_tuple in seen:
+            continue
+        seen.add(key_tuple)
+        out.append(item)
+    return out
+
+
 def _strip_html(text):
     """Remove HTML tags and normalize whitespace for plain-text display."""
     if not text:
@@ -945,8 +967,17 @@ def _show_40k_details_impl(unit_id, entry_id=None, detachment_id=None, faction=N
                 FROM waha_datasheets_models 
                 WHERE datasheet_id = %s
             """, (unit_id,))
-            models = cursor.fetchall()
-            
+            models_raw = cursor.fetchall()
+            # Dedupe: DB may have duplicate model rows (same stat line twice); use lowercase keys so casing doesn't split
+            models = _dedupe_by_key(
+                models_raw,
+                lambda d: (
+                    d.get("model"), d.get("m"), d.get("t"), d.get("sv"),
+                    d.get("w"), d.get("ld"), d.get("oc"),
+                    d.get("inv_sv"), d.get("inv_sv_descr"),
+                ),
+            )
+
             if models:
                 stats_df = pd.DataFrame(models)
                 # Drop internal/display-noise columns
@@ -987,11 +1018,13 @@ def _show_40k_details_impl(unit_id, entry_id=None, detachment_id=None, faction=N
                     s = str(raw).strip()
                     if s.startswith('0 ') and len(s) > 2: s = s[2:].strip()
                     return s or '—'
-                special_saves = [
+                special_saves_raw = [
                     f"**{_model_label(m)}**: {m.get('inv_sv') or '—'} ({m.get('inv_sv_descr') or 'No special rules'})"
                     for m in models if (m.get('inv_sv') or m.get('Inv Sv')) and str(m.get('inv_sv') or m.get('Inv Sv') or '').strip() not in ('', '-', 'None')
                 ]
-                
+                # Dedupe by note text (strip so whitespace differences don't keep duplicates)
+                special_saves = list(dict.fromkeys(s.strip() for s in special_saves_raw))
+
                 if special_saves:
                     with st.expander("🛡️ Invulnerable Saves & Special Notes", expanded=True):
                         for note in special_saves:
@@ -1156,13 +1189,18 @@ def _show_40k_details_impl(unit_id, entry_id=None, detachment_id=None, faction=N
                     "SELECT name, range_val, attacks, bs_ws, ap, damage, description FROM waha_datasheets_wargear WHERE datasheet_id = %s ORDER BY name",
                     (str(unit_id),),
                 )
-                wargear_rows = cursor.fetchall()
-                if not wargear_rows and str(unit_id).strip():
+                wargear_raw = cursor.fetchall()
+                if not wargear_raw and str(unit_id).strip():
                     cursor.execute(
                         "SELECT name, range_val, attacks, bs_ws, ap, damage, description FROM waha_datasheets_wargear WHERE CAST(datasheet_id AS CHAR) = %s ORDER BY name",
                         (str(unit_id).strip(),),
                     )
-                    wargear_rows = cursor.fetchall()
+                    wargear_raw = cursor.fetchall()
+                # Dedupe: DB may have duplicate wargear rows (same weapon twice); use lowercase keys
+                wargear_rows = _dedupe_by_key(
+                    wargear_raw,
+                    lambda d: (d.get("name"), d.get("range_val"), d.get("attacks"), d.get("bs_ws"), d.get("ap"), d.get("damage")),
+                )
                 display_data = []
                 for w in wargear_rows:
                     name = w.get('name') or '—'
@@ -1326,6 +1364,7 @@ def _show_40k_details_impl(unit_id, entry_id=None, detachment_id=None, faction=N
                         ORDER BY CASE WHEN LOWER(TRIM(COALESCE(da.type,''))) = 'faction' THEN 0 WHEN LOWER(TRIM(COALESCE(da.type,''))) = 'datasheet' THEN 1 WHEN LOWER(TRIM(COALESCE(da.type,''))) = 'wargear' THEN 2 WHEN LOWER(TRIM(COALESCE(da.type,''))) LIKE 'special%' THEN 3 ELSE 4 END, ab_name ASC
                     """, (str(unit_id).strip(),))
                     unit_abilities = cursor.fetchall()
+                unit_abilities = _dedupe_by_key(unit_abilities or [], lambda d: (d.get("ab_name"), d.get("ab_desc"), d.get("type")))
                 if unit_abilities:
                     for ab in unit_abilities:
                         ab_type = (ab.get('type') or '').strip()
@@ -1408,6 +1447,7 @@ def _show_40k_details_impl(unit_id, entry_id=None, detachment_id=None, faction=N
                         WHERE CAST(c.datasheet_id AS CHAR) = %s ORDER BY c.line_id ASC
                     """, (str(unit_id).strip(),))
                     comp_list = cursor.fetchall()
+                comp_list = _dedupe_by_key(comp_list or [], lambda d: (d.get("description"), d.get("base_size"), d.get("base_size_descr")))
                 if comp_list:
                     for comp in comp_list:
                         desc = comp.get('description', '') or ''
