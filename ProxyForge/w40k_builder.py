@@ -128,10 +128,19 @@ def _show_led_by_can_lead_transport(cursor, unit_id):
             """, (uid_str,))
             led_by = cursor.fetchall()
         if led_by:
-            st.markdown("**LED BY**")
-            st.caption("This unit can be led by the following units:")
+            # Dedupe by name (DB may have duplicate leader rows)
+            seen_led = set()
+            led_names = []
             for r in led_by:
-                st.write(f"• {r.get('name', '')}")
+                n = (r.get("name") or r.get("Name") or "").strip()
+                if n and n not in seen_led:
+                    seen_led.add(n)
+                    led_names.append(n)
+            if led_names:
+                st.markdown("**LED BY**")
+                st.caption("This unit can be led by the following units:")
+                for n in led_names:
+                    st.write(f"• {n}")
     except Exception:
         pass
     # CAN LEAD
@@ -150,10 +159,19 @@ def _show_led_by_can_lead_transport(cursor, unit_id):
             """, (uid_str,))
             can_lead = cursor.fetchall()
         if can_lead:
-            st.markdown("**CAN LEAD**")
-            st.caption("This unit can lead the following units:")
+            # Dedupe by name (DB may have duplicate rows)
+            seen_lead = set()
+            lead_names = []
             for r in can_lead:
-                st.write(f"• {r.get('name', '')}")
+                n = (r.get("name") or r.get("Name") or "").strip()
+                if n and n not in seen_lead:
+                    seen_lead.add(n)
+                    lead_names.append(n)
+            if lead_names:
+                st.markdown("**CAN LEAD**")
+                st.caption("This unit can lead the following units:")
+                for n in lead_names:
+                    st.write(f"• {n}")
     except Exception:
         pass
     # Transport
@@ -214,8 +232,8 @@ def _is_leader(cursor, datasheet_id):
 
 
 def _format_stratagem_description(desc):
-    """Strip HTML; insert line breaks before TARGET, EFFECT, RESTRICTIONS; bold WHEN, TARGET, EFFECT, RESTRICTIONS."""
-    text = _strip_html(desc or "")
+    """Strip HTML; insert line breaks before TARGET, EFFECT, RESTRICTIONS; bold WHEN, TARGET, EFFECT, RESTRICTIONS; fix mojibake."""
+    text = fix_apostrophe_mojibake(_strip_html(desc or ""))
     if not text:
         return ""
     # Bold WHEN at the start (case-insensitive)
@@ -1600,6 +1618,72 @@ def _gameday_build_groups(roster_df):
     return pairs + solos
 
 
+def _get_gameday_unit_image(cursor, entry_id, datasheet_id):
+    """Return (image_url, caption) for gameday. Priority: 1) Roster unit STL, 2) Unit default STL, 3) Wahapedia. So different roster entries of the same unit can show different STL photos. Returns (None, None) if no image."""
+    # 1) Roster unit STL (play_armylist_stl_choices): per-entry choice, so same unit type can show different STLs
+    if entry_id is not None:
+        try:
+            eid = int(entry_id) if not (hasattr(entry_id, "__float__") and pd.isna(entry_id)) else None
+            if eid is not None:
+                cursor.execute("""
+                    SELECT l.preview_url, l.name
+                    FROM play_armylist_stl_choices c
+                    JOIN stl_library l ON l.mmf_id = c.mmf_id
+                    WHERE c.entry_id = %s
+                    ORDER BY c.sort_order ASC, c.id ASC
+                    LIMIT 1
+                """, (eid,))
+                row = cursor.fetchone()
+                if row and row.get("preview_url"):
+                    name = (row.get("name") or "").strip() or "Proxy"
+                    return (row["preview_url"], name)
+        except (TypeError, ValueError):
+            pass
+    # 2) Unit default STL (stl_unit_links): fallback when this roster entry has no STL chosen
+    if datasheet_id and str(datasheet_id).strip():
+        sid = str(datasheet_id).strip()
+        if sid.endswith(".0") and sid[:-2].isdigit():
+            sid = sid[:-2]
+        try:
+            cursor.execute("""
+                SELECT l.preview_url, l.name
+                FROM stl_library l
+                JOIN stl_unit_links ul ON l.mmf_id = ul.mmf_id
+                WHERE ul.unit_id = %s AND ul.game_system = '40K_10E' AND ul.is_default = 1
+                LIMIT 1
+            """, (sid,))
+            row = cursor.fetchone()
+            if not row:
+                cursor.execute("""
+                    SELECT l.preview_url, l.name
+                    FROM stl_library l
+                    JOIN stl_unit_links ul ON l.mmf_id = ul.mmf_id
+                    WHERE CAST(ul.unit_id AS CHAR) = %s AND ul.game_system = '40K_10E' AND ul.is_default = 1
+                    LIMIT 1
+                """, (sid,))
+                row = cursor.fetchone()
+            if row and row.get("preview_url"):
+                return (row["preview_url"], (row.get("name") or "Proxy").strip() or "Proxy")
+        except Exception:
+            pass
+    # 3) Wahapedia datasheet image
+    if datasheet_id and str(datasheet_id).strip():
+        sid = str(datasheet_id).strip()
+        if sid.endswith(".0") and sid[:-2].isdigit():
+            sid = sid[:-2]
+        try:
+            cursor.execute("SELECT image_url FROM waha_datasheets WHERE waha_datasheet_id = %s", (sid,))
+            row = cursor.fetchone()
+            if not row or not row.get("image_url"):
+                cursor.execute("SELECT image_url FROM waha_datasheets WHERE CAST(waha_datasheet_id AS CHAR) = %s", (sid,))
+                row = cursor.fetchone()
+            if row and row.get("image_url") and str(row.get("image_url")).strip():
+                return (str(row["image_url"]).strip(), "Datasheet")
+        except Exception:
+            pass
+    return (None, None)
+
+
 def _render_gameday_unit_card(conn, cursor, row, active_list, roster_df=None, unit_label=None):
     """Render one unit's data card. Uses canonical datasheet_id for all lookups (from row or resolved from entry_id). roster_df used for leader/bodyguard labels. unit_label e.g. 'Boyz A' for numbering."""
     entry_id = row.get("entry_id") or row.get("Entry_ID")
@@ -1642,8 +1726,16 @@ def _render_gameday_unit_card(conn, cursor, row, active_list, roster_df=None, un
                 if (r.get("attached_to_entry_id") or None) == eid_val:
                     led_by_leader_name = r.get("Unit", "Leader")
                     break
-    with st.expander(f"**{qty}x {unit_name}** ({total_pts} pts)", expanded=False):
-        _render_gameday_unit_content(conn, cursor, row, active_list, roster_df, sid, entry_id, led_by_leader_name, leading_unit_name)
+    img_url, img_caption = _get_gameday_unit_image(cursor, entry_id, sid)
+    col_img, col_main = st.columns([0.22, 0.78])
+    with col_img:
+        if img_url:
+            st.image(img_url, use_container_width=True, caption=img_caption if img_caption else None)
+        else:
+            st.caption("No image")
+    with col_main:
+        with st.expander(f"**{qty}x {unit_name}** ({total_pts} pts)", expanded=False):
+            _render_gameday_unit_content(conn, cursor, row, active_list, roster_df, sid, entry_id, led_by_leader_name, leading_unit_name)
 
 
 def _render_gameday_unit_content(conn, cursor, row, active_list, roster_df, sid, entry_id, led_by_leader_name=None, leading_unit_name=None):
@@ -1691,22 +1783,24 @@ def _render_gameday_unit_content(conn, cursor, row, active_list, roster_df, sid,
                 cursor.execute(fallback, (str(param).strip(),))
                 out = cursor.fetchall()
         return out
-    # A. Stats Table
+    # A. Stats Table (dedupe: DB may have duplicate model rows)
     cursor.execute("SELECT name as Model, movement as M, toughness as T, save_value as Sv, wounds as W, leadership as Ld, oc as OC FROM waha_datasheets_models WHERE datasheet_id = %s", (sid,))
-    models = cursor.fetchall()
-    if not models:
+    models_raw = cursor.fetchall()
+    if not models_raw:
         cursor.execute("SELECT name as Model, movement as M, toughness as T, save_value as Sv, wounds as W, leadership as Ld, oc as OC FROM waha_datasheets_models WHERE CAST(datasheet_id AS CHAR) = %s", (sid,))
-        models = cursor.fetchall()
+        models_raw = cursor.fetchall()
+    models = _dedupe_by_key(models_raw, lambda d: (d.get("model"), d.get("m"), d.get("t"), d.get("sv"), d.get("w"), d.get("ld"), d.get("oc")))
     if models:
         st.dataframe(pd.DataFrame(models), hide_index=True, width="stretch")
     # B. Unit Composition (with base size per line)
     with st.expander("👥 Unit Composition", expanded=False):
-        comp_list = _query_id("""
+        comp_raw = _query_id("""
             SELECT c.description, m.base_size, m.base_size_descr
             FROM waha_datasheet_unit_composition c
             LEFT JOIN waha_datasheets_models m ON c.datasheet_id = m.datasheet_id AND c.line_id = m.line_id
             WHERE c.datasheet_id = %s ORDER BY c.line_id ASC
         """, sid)
+        comp_list = _dedupe_by_key(comp_raw or [], lambda d: (d.get("description"), d.get("base_size"), d.get("base_size_descr")))
         if comp_list:
             for c in comp_list:
                 desc = (c.get('description') or '').strip()
@@ -1722,15 +1816,18 @@ def _render_gameday_unit_content(conn, cursor, row, active_list, roster_df, sid,
             loadout = _query_id("SELECT loadout FROM waha_datasheets WHERE waha_datasheet_id = %s", sid)
             if loadout and loadout[0].get("loadout") and str(loadout[0].get("loadout")).strip():
                 st.caption("**Default loadout:**\n\n" + _loadout_to_display(str(loadout[0].get("loadout")).strip()))
-            wargear = _query_id("SELECT name, range_val, attacks, bs_ws, ap, damage, description FROM waha_datasheets_wargear WHERE datasheet_id = %s ORDER BY name", sid)
+            wargear_raw = _query_id("SELECT name, range_val, attacks, bs_ws, ap, damage, description FROM waha_datasheets_wargear WHERE datasheet_id = %s ORDER BY name", sid)
+            wargear = _dedupe_by_key(wargear_raw or [], lambda d: (d.get("name"), d.get("range_val"), d.get("attacks"), d.get("bs_ws"), d.get("ap"), d.get("damage")))
             if wargear:
                 rows = []
                 for w in wargear:
                     special = (w.get("description") or "").strip()
                     if special:
-                        special = _strip_html(special)
+                        special = fix_apostrophe_mojibake(_strip_html(special))
+                    row_vals = {k: w.get(k) or "—" for k in ("name", "range_val", "attacks", "bs_ws", "ap", "damage")}
+                    row_vals["name"] = fix_apostrophe_mojibake(str(row_vals.get("name") or ""))
                     rows.append({
-                        **{k: w.get(k) or "—" for k in ("name", "range_val", "attacks", "bs_ws", "ap", "damage")},
+                        **row_vals,
                         "Special": special or "—",
                     })
                 st.dataframe(pd.DataFrame(rows), hide_index=True, width="stretch")
@@ -1753,15 +1850,16 @@ def _render_gameday_unit_content(conn, cursor, row, active_list, roster_df, sid,
                 with st.expander(f"✨ Enhancement: {equipped_enh.get('name', '')} (+{equipped_enh.get('cost', 0)} pts)", expanded=True):
                     st.write(equipped_enh.get('description') or '')
         with st.expander("📜 Abilities", expanded=False):
-            ab_list = _query_id(
+            ab_raw = _query_id(
                 "SELECT COALESCE(a.name, da.name) as ab_name, COALESCE(a.description, da.description) as ab_desc, da.type FROM waha_datasheets_abilities da LEFT JOIN waha_abilities a ON da.ability_id = a.id WHERE da.datasheet_id = %s ORDER BY CASE WHEN LOWER(TRIM(COALESCE(da.type,''))) = 'faction' THEN 0 WHEN LOWER(TRIM(COALESCE(da.type,''))) = 'datasheet' THEN 1 WHEN LOWER(TRIM(COALESCE(da.type,''))) = 'wargear' THEN 2 WHEN LOWER(TRIM(COALESCE(da.type,''))) LIKE 'special%' THEN 3 ELSE 4 END, ab_name",
                 sid,
             )
+            ab_list = _dedupe_by_key(ab_raw or [], lambda d: (d.get("ab_name"), d.get("ab_desc"), d.get("type")))
             if ab_list:
                 for ab in ab_list:
                     ab_type = (ab.get('type') or '').strip()
-                    name = _strip_html(ab.get('ab_name') or '')
-                    desc = _strip_option_html((ab.get('ab_desc') or '').strip())
+                    name = fix_apostrophe_mojibake(_strip_html(ab.get('ab_name') or ''))
+                    desc = fix_apostrophe_mojibake(_strip_option_html((ab.get('ab_desc') or '').strip()))
                     if ab_type and ab_type.lower() == 'faction':
                         st.markdown(f"**FACTION:** {name}")
                         if desc:
@@ -1878,13 +1976,28 @@ def _render_gameday_group_card(conn, cursor, leader_row, bodyguard_row, active_l
     except (TypeError, ValueError):
         total_pts = pts_l + pts_b
     title = f"**{qty_l}x {leader_label}** → **{qty_b}x {body_label}** ({total_pts} pts)"
+    sid_l, eid_l, led_by_l, leading_l = _resolve_row_datasheet_and_attachment(conn, leader_row, roster_df)
+    sid_b, eid_b, led_by_b, leading_b = _resolve_row_datasheet_and_attachment(conn, bodyguard_row, roster_df)
+    leader_img, leader_cap = _get_gameday_unit_image(cursor, eid_l, sid_l)
+    body_img, body_cap = _get_gameday_unit_image(cursor, eid_b, sid_b)
     with st.expander(title, expanded=False):
+        if leader_img or body_img:
+            ic1, ic2 = st.columns(2)
+            with ic1:
+                if leader_img:
+                    st.image(leader_img, use_container_width=True, caption=f"{leader_label}" + (f" — {leader_cap}" if leader_cap else ""))
+                else:
+                    st.caption(f"{leader_label}: no image")
+            with ic2:
+                if body_img:
+                    st.image(body_img, use_container_width=True, caption=f"{body_label}" + (f" — {body_cap}" if body_cap else ""))
+                else:
+                    st.caption(f"{body_label}: no image")
+            st.divider()
         st.markdown(f"— **Leader:** {leader_label} —")
-        sid_l, eid_l, led_by_l, leading_l = _resolve_row_datasheet_and_attachment(conn, leader_row, roster_df)
         _render_gameday_unit_content(conn, cursor, leader_row, active_list, roster_df, sid_l, eid_l, led_by_l, leading_l)
         st.divider()
         st.markdown(f"— **Unit:** {body_label} —")
-        sid_b, eid_b, led_by_b, leading_b = _resolve_row_datasheet_and_attachment(conn, bodyguard_row, roster_df)
         _render_gameday_unit_content(conn, cursor, bodyguard_row, active_list, roster_df, sid_b, eid_b, led_by_b, leading_b)
 
 
@@ -2022,6 +2135,11 @@ def _render_roster_row(row, list_id, active_list, active_det_id, cursor, conn, u
             else:
                 qty = min_sz
         except (ValueError, TypeError):
+            qty = min_sz
+        # Clamp to valid range so stale DB quantity (e.g. 2 for Mortarion) shows correctly after view dedupe
+        if max_sz is not None and qty > max_sz:
+            qty = max_sz
+        if qty < min_sz:
             qty = min_sz
         if max_sz is not None and max_sz > min_sz and entry_id is not None:
             is_max = (qty == max_sz)
