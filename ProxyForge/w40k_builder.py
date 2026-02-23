@@ -1791,7 +1791,7 @@ def _render_gameday_unit_content(conn, cursor, row, active_list, roster_df, sid,
         models_raw = cursor.fetchall()
     models = _dedupe_by_key(models_raw, lambda d: (d.get("model"), d.get("m"), d.get("t"), d.get("sv"), d.get("w"), d.get("ld"), d.get("oc")))
     if models:
-        st.dataframe(pd.DataFrame(models), hide_index=True, width="stretch")
+        st.table(pd.DataFrame(models))  # st.table = plain HTML table, fits print column width with CSS
     # B. Unit Composition (with base size per line)
     with st.expander("👥 Unit Composition", expanded=False):
         comp_raw = _query_id("""
@@ -1810,115 +1810,113 @@ def _render_gameday_unit_content(conn, cursor, row, active_list, roster_df, sid,
                 st.write(f"• {desc}")
         else:
             st.caption("No composition data for this unit.")
-    w_col, ra_col = st.columns([0.45, 0.55])
-    with w_col:
-        with st.expander("⚔️ Weapons", expanded=True):
-            loadout = _query_id("SELECT loadout FROM waha_datasheets WHERE waha_datasheet_id = %s", sid)
-            if loadout and loadout[0].get("loadout") and str(loadout[0].get("loadout")).strip():
-                st.caption("**Default loadout:**\n\n" + _loadout_to_display(str(loadout[0].get("loadout")).strip()))
-            wargear_raw = _query_id("SELECT name, range_val, attacks, bs_ws, ap, damage, description FROM waha_datasheets_wargear WHERE datasheet_id = %s ORDER BY name", sid)
-            wargear = _dedupe_by_key(wargear_raw or [], lambda d: (d.get("name"), d.get("range_val"), d.get("attacks"), d.get("bs_ws"), d.get("ap"), d.get("damage")))
-            if wargear:
-                rows = []
-                for w in wargear:
-                    special = (w.get("description") or "").strip()
-                    if special:
-                        special = fix_apostrophe_mojibake(_strip_html(special))
-                    row_vals = {k: w.get(k) or "—" for k in ("name", "range_val", "attacks", "bs_ws", "ap", "damage")}
-                    row_vals["name"] = fix_apostrophe_mojibake(str(row_vals.get("name") or ""))
-                    rows.append({
-                        **row_vals,
-                        "Special": special or "—",
-                    })
-                st.dataframe(pd.DataFrame(rows), hide_index=True, width="stretch")
-            else:
-                st.caption("No weapons/wargear data for this unit.")
-    with ra_col:
-        if entry_id is not None:
-            try:
-                eid = int(entry_id)
-                cursor.execute("""
-                    SELECT e.name, e.description, ple.cost 
-                    FROM play_armylist_enhancements ple
-                    JOIN waha_enhancements e ON ple.enhancement_id = e.id
-                    WHERE ple.entry_id = %s
-                """, (eid,))
-                equipped_enh = cursor.fetchone()
-            except (TypeError, ValueError):
-                equipped_enh = None
-            if equipped_enh:
-                with st.expander(f"✨ Enhancement: {equipped_enh.get('name', '')} (+{equipped_enh.get('cost', 0)} pts)", expanded=True):
-                    st.write(equipped_enh.get('description') or '')
-        with st.expander("📜 Abilities", expanded=False):
-            ab_raw = _query_id(
-                "SELECT COALESCE(a.name, da.name) as ab_name, COALESCE(a.description, da.description) as ab_desc, da.type FROM waha_datasheets_abilities da LEFT JOIN waha_abilities a ON da.ability_id = a.id WHERE da.datasheet_id = %s ORDER BY CASE WHEN LOWER(TRIM(COALESCE(da.type,''))) = 'faction' THEN 0 WHEN LOWER(TRIM(COALESCE(da.type,''))) = 'datasheet' THEN 1 WHEN LOWER(TRIM(COALESCE(da.type,''))) = 'wargear' THEN 2 WHEN LOWER(TRIM(COALESCE(da.type,''))) LIKE 'special%' THEN 3 ELSE 4 END, ab_name",
-                sid,
-            )
-            ab_list = _dedupe_by_key(ab_raw or [], lambda d: (d.get("ab_name"), d.get("ab_desc"), d.get("type")))
-            if ab_list:
-                for ab in ab_list:
-                    ab_type = (ab.get('type') or '').strip()
-                    name = fix_apostrophe_mojibake(_strip_html(ab.get('ab_name') or ''))
-                    desc = fix_apostrophe_mojibake(_strip_option_html((ab.get('ab_desc') or '').strip()))
-                    if ab_type and ab_type.lower() == 'faction':
-                        st.markdown(f"**FACTION:** {name}")
-                        if desc:
-                            st.markdown(desc)
-                    else:
-                        st.markdown(f"**{name}**: {desc}" if desc else f"**{name}**")
-            else:
-                st.caption("No abilities data for this unit.")
-        with st.expander("👥 Led By / Can Lead / Transport", expanded=False):
-            _show_led_by_can_lead_transport(cursor, sid)
-        with st.expander("🎯 Relevant Stratagems", expanded=False):
-            try:
-                kw_rows = _query_id("SELECT keyword FROM waha_datasheets_keywords WHERE datasheet_id = %s", sid)
-                unit_keywords = [str(k.get('keyword', '')).upper() for k in (kw_rows or [])]
-                det_id = active_list.get('waha_detachment_id')
-                strats = []
-                if det_id is not None:
-                    cursor.execute("""
-                        SELECT name, cp_cost, type, phase, description FROM waha_stratagems
-                        WHERE detachment_id = %s OR CAST(detachment_id AS UNSIGNED) = %s
-                    """, (det_id, det_id))
-                    strats = list(cursor.fetchall())
+    # Full-width vertical stack for print: tables and text don't bleed (no 45/55 columns)
+    with st.expander("⚔️ Weapons", expanded=True):
+        loadout = _query_id("SELECT loadout FROM waha_datasheets WHERE waha_datasheet_id = %s", sid)
+        if loadout and loadout[0].get("loadout") and str(loadout[0].get("loadout")).strip():
+            st.caption("**Default loadout:**\n\n" + _loadout_to_display(str(loadout[0].get("loadout")).strip()))
+        wargear_raw = _query_id("SELECT name, range_val, attacks, bs_ws, ap, damage, description FROM waha_datasheets_wargear WHERE datasheet_id = %s ORDER BY name", sid)
+        wargear = _dedupe_by_key(wargear_raw or [], lambda d: (d.get("name"), d.get("range_val"), d.get("attacks"), d.get("bs_ws"), d.get("ap"), d.get("damage")))
+        if wargear:
+            rows = []
+            for w in wargear:
+                special = (w.get("description") or "").strip()
+                if special:
+                    special = fix_apostrophe_mojibake(_strip_html(special))
+                row_vals = {k: w.get(k) or "—" for k in ("name", "range_val", "attacks", "bs_ws", "ap", "damage")}
+                row_vals["name"] = fix_apostrophe_mojibake(str(row_vals.get("name") or ""))
+                rows.append({
+                    **row_vals,
+                    "Special": special or "—",
+                })
+            st.table(pd.DataFrame(rows))  # st.table = plain HTML table, fits print column width with CSS
+        else:
+            st.caption("No weapons/wargear data for this unit.")
+    if entry_id is not None:
+        try:
+            eid = int(entry_id)
+            cursor.execute("""
+                SELECT e.name, e.description, ple.cost 
+                FROM play_armylist_enhancements ple
+                JOIN waha_enhancements e ON ple.enhancement_id = e.id
+                WHERE ple.entry_id = %s
+            """, (eid,))
+            equipped_enh = cursor.fetchone()
+        except (TypeError, ValueError):
+            equipped_enh = None
+        if equipped_enh:
+            with st.expander(f"✨ Enhancement: {equipped_enh.get('name', '')} (+{equipped_enh.get('cost', 0)} pts)", expanded=True):
+                st.write(equipped_enh.get('description') or '')
+    with st.expander("📜 Abilities", expanded=False):
+        ab_raw = _query_id(
+            "SELECT COALESCE(a.name, da.name) as ab_name, COALESCE(a.description, da.description) as ab_desc, da.type FROM waha_datasheets_abilities da LEFT JOIN waha_abilities a ON da.ability_id = a.id WHERE da.datasheet_id = %s ORDER BY CASE WHEN LOWER(TRIM(COALESCE(da.type,''))) = 'faction' THEN 0 WHEN LOWER(TRIM(COALESCE(da.type,''))) = 'datasheet' THEN 1 WHEN LOWER(TRIM(COALESCE(da.type,''))) = 'wargear' THEN 2 WHEN LOWER(TRIM(COALESCE(da.type,''))) LIKE 'special%' THEN 3 ELSE 4 END, ab_name",
+            sid,
+        )
+        ab_list = _dedupe_by_key(ab_raw or [], lambda d: (d.get("ab_name"), d.get("ab_desc"), d.get("type")))
+        if ab_list:
+            for ab in ab_list:
+                ab_type = (ab.get('type') or '').strip()
+                name = fix_apostrophe_mojibake(_strip_html(ab.get('ab_name') or ''))
+                desc = fix_apostrophe_mojibake(_strip_option_html((ab.get('ab_desc') or '').strip()))
+                if ab_type and ab_type.lower() == 'faction':
+                    st.markdown(f"**FACTION:** {name}")
+                    if desc:
+                        st.markdown(desc)
+                else:
+                    st.markdown(f"**{name}**: {desc}" if desc else f"**{name}**")
+        else:
+            st.caption("No abilities data for this unit.")
+    with st.expander("👥 Led By / Can Lead / Transport", expanded=False):
+        _show_led_by_can_lead_transport(cursor, sid)
+    with st.expander("🎯 Relevant Stratagems", expanded=False):
+        try:
+            kw_rows = _query_id("SELECT keyword FROM waha_datasheets_keywords WHERE datasheet_id = %s", sid)
+            unit_keywords = [str(k.get('keyword', '')).upper() for k in (kw_rows or [])]
+            det_id = active_list.get('waha_detachment_id')
+            strats = []
+            if det_id is not None:
                 cursor.execute("""
                     SELECT name, cp_cost, type, phase, description FROM waha_stratagems
-                    WHERE (detachment_id IS NULL OR TRIM(COALESCE(detachment_id,'')) = '' OR type LIKE %s)
-                """, ("%Core%",))
-                core_rows = cursor.fetchall()
-                seen_keys = {(_normalize_stratagem_name_for_key(s.get("name") or ""), s.get("cp_cost")) for s in strats}
-                for s in core_rows:
-                    k = (_normalize_stratagem_name_for_key(s.get("name") or ""), s.get("cp_cost"))
-                    if k not in seen_keys:
-                        seen_keys.add(k)
-                        strats.append(s)
-                strats = _dedupe_stratagems(strats)
-                found_any = False
-                faction_upper = (active_list.get('faction_primary') or '').upper()
+                    WHERE detachment_id = %s OR CAST(detachment_id AS UNSIGNED) = %s
+                """, (det_id, det_id))
+                strats = list(cursor.fetchall())
+            cursor.execute("""
+                SELECT name, cp_cost, type, phase, description FROM waha_stratagems
+                WHERE (detachment_id IS NULL OR TRIM(COALESCE(detachment_id,'')) = '' OR type LIKE %s)
+            """, ("%Core%",))
+            core_rows = cursor.fetchall()
+            seen_keys = {(_normalize_stratagem_name_for_key(s.get("name") or ""), s.get("cp_cost")) for s in strats}
+            for s in core_rows:
+                k = (_normalize_stratagem_name_for_key(s.get("name") or ""), s.get("cp_cost"))
+                if k not in seen_keys:
+                    seen_keys.add(k)
+                    strats.append(s)
+            strats = _dedupe_stratagems(strats)
+            found_any = False
+            faction_upper = (active_list.get('faction_primary') or '').upper()
+            for s in strats:
+                desc = s.get('description') or ''
+                desc_upper = (desc or '').upper()[:250]
+                is_relevant = any(k in desc_upper for k in unit_keywords) or f"{faction_upper} UNIT" in desc_upper or "ANY UNIT" in desc_upper
+                if "VEHICLE" in desc_upper and "VEHICLE" not in unit_keywords:
+                    is_relevant = False
+                if "INFANTRY" in desc_upper and "INFANTRY" not in unit_keywords:
+                    is_relevant = False
+                if is_relevant:
+                    found_any = True
+                    st.markdown(f"**{s.get('name', '')}** ({s.get('cp_cost', 0)}CP)")
+                    st.markdown(_format_stratagem_description(desc))
+                    st.divider()
+            if not found_any and strats:
+                st.caption("No stratagems filtered by unit keywords. Showing all detachment and Core stratagems:")
                 for s in strats:
-                    desc = s.get('description') or ''
-                    desc_upper = (desc or '').upper()[:250]
-                    is_relevant = any(k in desc_upper for k in unit_keywords) or f"{faction_upper} UNIT" in desc_upper or "ANY UNIT" in desc_upper
-                    if "VEHICLE" in desc_upper and "VEHICLE" not in unit_keywords:
-                        is_relevant = False
-                    if "INFANTRY" in desc_upper and "INFANTRY" not in unit_keywords:
-                        is_relevant = False
-                    if is_relevant:
-                        found_any = True
-                        st.markdown(f"**{s.get('name', '')}** ({s.get('cp_cost', 0)}CP)")
-                        st.markdown(_format_stratagem_description(desc))
-                        st.divider()
-                if not found_any and strats:
-                    st.caption("No stratagems filtered by unit keywords. Showing all detachment and Core stratagems:")
-                    for s in strats:
-                        st.markdown(f"**{s.get('name', '')}** ({s.get('cp_cost', 0)}CP)")
-                        st.markdown(_format_stratagem_description(s.get('description') or ''))
-                        st.divider()
-                elif not strats:
-                    st.caption("No stratagems loaded. Select a detachment for this list to see detachment and Core stratagems.")
-            except Exception:
-                st.caption("Could not load stratagems.")
+                    st.markdown(f"**{s.get('name', '')}** ({s.get('cp_cost', 0)}CP)")
+                    st.markdown(_format_stratagem_description(s.get('description') or ''))
+                    st.divider()
+            elif not strats:
+                st.caption("No stratagems loaded. Select a detachment for this list to see detachment and Core stratagems.")
+        except Exception:
+            st.caption("Could not load stratagems.")
 
 
 def _resolve_row_datasheet_and_attachment(conn, row, roster_df):
@@ -2003,6 +2001,46 @@ def _render_gameday_group_card(conn, cursor, leader_row, bodyguard_row, active_l
 
 def show_gameday_view(active_list, roster_df, total_pts):
     """A fully collapsible tactical sheet with a surgical stacked column layout."""
+    # Print-friendly CSS: stack columns, constrain tables, avoid breaking unit cards across pages
+    st.markdown("""
+    <style>
+    @media print {
+        /* Stack columns vertically so image is above text (no overlap) */
+        [data-testid="stHorizontalBlock"] {
+            flex-direction: column !important; display: flex !important;
+        }
+        [data-testid="column"] {
+            flex: 0 0 auto !important; max-width: 100% !important; width: 100% !important;
+            display: block !important; clear: both !important;
+        }
+        [data-testid="stHorizontalBlock"] > div {
+            flex: 0 0 auto !important; max-width: 100% !important; width: 100% !important;
+            display: block !important; clear: both !important;
+        }
+        /* Insert space/line break after image column so text clearly starts below */
+        [data-testid="stHorizontalBlock"] > div:first-child {
+            margin-bottom: 1rem !important; padding-bottom: 0.5rem !important;
+        }
+        .element-container { page-break-inside: avoid; }
+        /* Fit tables to column width: constrain container and scale inner table */
+        .stDataFrame, [data-testid="stDataFrameResizable"] {
+            max-width: 100% !important; width: 100% !important; overflow: visible !important;
+        }
+        [data-testid="stDataFrameResizable"] > div { max-width: 100% !important; width: 100% !important; }
+        /* Plain table elements (stats, weapons via st.table): fit width, wrap text, slightly smaller font */
+        [data-testid="stTable"] { width: 100% !important; max-width: 100% !important; }
+        table { width: 100% !important; max-width: 100% !important; table-layout: fixed !important; }
+        th, td { word-wrap: break-word !important; overflow-wrap: break-word !important; font-size: 0.7rem !important; }
+        /* AG-Grid / Streamlit dataframe inner table */
+        .stDataFrame table, [data-testid="stDataFrameResizable"] table {
+            width: 100% !important; max-width: 100% !important; table-layout: fixed !important;
+        }
+        .stDataFrame th, .stDataFrame td, [data-testid="stDataFrameResizable"] th, [data-testid="stDataFrameResizable"] td {
+            word-wrap: break-word !important; overflow-wrap: break-word !important; font-size: 0.7rem !important;
+        }
+    }
+    </style>
+    """, unsafe_allow_html=True)
     st.title(f"📄 Tactical Briefing: {fix_apostrophe_mojibake(active_list['list_name'])}")
     
     conn = get_db_connection()
