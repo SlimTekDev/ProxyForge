@@ -15,8 +15,10 @@ def fix_apostrophe_mojibake(s: str) -> str:
         .replace("â€™", "'")     # common Windows mojibake for '
         .replace("Ã¢â‚¬â„¢", "'")
     )
-    # En-dash / hyphen mojibake (e.g. "Plasma gun ΓÇô standard")
-    s = s.replace("ΓÇô", "\u2013").replace("â€"", "\u2013")
+    # En-dash mojibake: UTF-8 bytes E2 80 93 (U+2013) misinterpreted as Latin-1 or CP1252 (use escapes only to avoid syntax errors)
+    s = s.replace("\u00e2\u0080\u0093", "\u2013")   # Latin-1: â + \x80 + \x93
+    s = s.replace("\u0393\u00c7\u00f4", "\u2013")   # "ΓÇô" visual (Gamma, C-cedilla, o-circumflex)
+    s = s.replace("\u00e2\u20ac\u201c", "\u2013")   # Windows: â + euro + curly quote
     return s
 
 
